@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07101c">
+<title>Planejador de Revezamento</title>
+<style>
+:root{
+  --bg:#07101c;--panel:#14243a;--panel2:#0b1829;--line:#29415f;
+  --text:#f7f9fc;--muted:#9fb0c7;--blue:#4da8ff;--green:#4ed5a0;
+  --yellow:#ffd06a;--red:#ff6976;--purple:#bd8cff
+}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(#07101c,#091523);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+.app{max-width:1080px;margin:auto;padding:14px 14px 110px}
+.top{position:sticky;top:0;z-index:20;background:rgba(7,16,28,.96);backdrop-filter:blur(12px);padding:10px 0 14px}
+.brand{display:flex;gap:12px;align-items:center}
+.logo{width:48px;height:48px;border-radius:16px;display:grid;place-items:center;background:var(--blue);color:#07101c;font-size:24px;font-weight:900}
+h1{font-size:18px;margin:0}.sub{font-size:12px;color:var(--muted);margin-top:3px}
+.progress{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;margin-top:14px}
+.progress span{height:5px;border-radius:99px;background:#21334c}.progress span.on{background:var(--blue)}
+.step{display:none}.step.active{display:block}
+.head{margin:18px 4px 14px}.eyebrow{font-size:12px;color:var(--blue);font-weight:900;text-transform:uppercase}
+.head h2{font-size:27px;line-height:1.08;margin:5px 0}.head p{color:var(--muted);font-size:14px;line-height:1.45;margin:0}
+.card{background:linear-gradient(180deg,#172942,#122238);border:1px solid var(--line);border-radius:20px;padding:16px;margin-bottom:14px}
+.card-title{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}.card-title h3{margin:0;font-size:16px}
+.small{font-size:12px;color:var(--muted)}
+.roster{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
+.chip{display:flex;align-items:center;justify-content:space-between;min-height:50px;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:#0b1727;color:white}
+.chip.sel{border-color:var(--blue);background:rgba(77,168,255,.12)}.tick{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#20344f;color:transparent}.chip.sel .tick{background:var(--blue);color:white}
+.row{display:flex;gap:8px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.input,.select,.textarea{width:100%;background:#091625;color:white;border:1px solid var(--line);border-radius:14px;padding:13px 14px;outline:none}
+.textarea{min-height:250px;resize:vertical;line-height:1.45}
+.btn{min-height:48px;border-radius:14px;border:0;padding:12px 15px;font-weight:900}.primary{color:white;background:linear-gradient(#50aaff,#277ad1)}.secondary{color:white;background:#1a2d48;border:1px solid var(--line)}.ghost{color:var(--muted);background:transparent;border:1px solid var(--line)}
+.helper{margin-top:10px;padding:11px 12px;border-radius:13px;border:1px solid rgba(77,168,255,.2);background:rgba(77,168,255,.08);color:#c5e2ff;font-size:12px;line-height:1.5}
+.activity{overflow:hidden;padding:0}.activity-main{padding:16px}.activity-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.machine{font-size:21px;font-weight:900}.owner{font-size:13px;color:var(--muted);margin-top:4px}
+.badge{display:inline-flex;padding:6px 10px;border-radius:99px;font-size:11px;font-weight:900}
+.setup{color:#ff9aa2;background:rgba(255,105,118,.13)}.adjust{color:#ffe38a;background:rgba(255,208,106,.13)}.future{color:#ffd687;background:rgba(255,208,106,.11)}.ok{color:#88edc4;background:rgba(78,213,160,.12)}.warn{color:#ffd687;background:rgba(255,208,106,.12)}.off{color:#8091a9;background:#172943}
+.choice{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.choice button{padding:12px;border-radius:14px;border:1px solid var(--line);background:#0a1727;color:white;font-weight:900}.choice button.on{border-color:var(--blue);background:rgba(77,168,255,.13)}
+.detail{border-top:1px solid var(--line);padding:14px;background:rgba(4,12,22,.25)}
+.time-button{width:100%;min-height:54px;border-radius:14px;border:1px solid var(--line);background:#091625;color:white;padding:12px 14px;font-size:18px;text-align:center}
+.candidates,.assistant-list{display:grid;gap:9px;margin-top:9px}
+.candidate,.assistant-card{width:100%;text-align:left;border-radius:17px;border:1px solid var(--line);background:#091626;color:white;padding:13px}
+.candidate.selected,.assistant-card.best{border-color:var(--green);box-shadow:0 0 0 2px rgba(78,213,160,.1);background:#172b45}
+.candidate.disabled{opacity:.42;cursor:not-allowed}
+.candidate-top,.assistant-top{display:flex;justify-content:space-between;gap:10px;align-items:center}.candidate-name,.assistant-name{font-size:17px;font-weight:900}
+.time-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.timebox{background:#10223a;border-radius:12px;padding:9px}.timebox span{display:block;font-size:11px;color:var(--muted)}.timebox strong{font-size:13px}
+.reason{margin-top:9px;font-size:11px;color:var(--muted);line-height:1.4}
+.sequence{display:grid;gap:7px;margin-top:10px}.sequence-step{display:grid;grid-template-columns:70px 1fr;gap:8px;background:#102139;border-radius:11px;padding:8px}.sequence-step strong{color:#9bd1ff;font-size:12px}.sequence-step span{font-size:12px;line-height:1.4}
+.suggestion-box{border:1px solid rgba(78,213,160,.25);background:rgba(78,213,160,.08);border-radius:15px;padding:12px;margin-top:10px}
+.suggestion-box strong{display:block;color:#8debc5;margin-bottom:4px}.suggestion-box span{font-size:12px;color:#d4eee4;line-height:1.45}
+.timeline-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:16px;background:#091625}
+.timeline{min-width:920px}.time-head,.time-row{display:grid;grid-template-columns:150px repeat(16,1fr)}
+.time-head>div,.time-row>div{min-height:42px;border-right:1px solid #1e3048;border-bottom:1px solid #1e3048;padding:5px;font-size:10px}
+.time-head>div{text-align:center;color:var(--muted);font-weight:800}.time-head>div:first-child{text-align:left;color:white}
+.person{font-weight:900;display:flex;align-items:center}.slot{padding:4px!important}.event{height:100%;border-radius:8px;padding:5px;overflow:hidden;font-size:9px;font-weight:800}
+.ev-free{background:rgba(78,213,160,.13);color:#8debc5}.ev-meal{background:rgba(77,168,255,.16);color:#a5d5ff}.ev-cover{background:rgba(189,140,255,.16);color:#d9bbff}.ev-busy{background:rgba(255,105,118,.14);color:#ffa7af}.ev-adjust{background:rgba(255,208,106,.14);color:#ffe499}
+.review{border:1px solid var(--line);background:#091626;border-radius:16px;padding:13px;margin-bottom:9px}
+.preview{white-space:pre-line;background:#07111e;border:1px dashed #3d5a7c;border-radius:15px;padding:13px;line-height:1.55;font-size:14px}
+.empty{text-align:center;color:var(--muted);padding:24px 10px}
+.modal-backdrop{position:fixed;inset:0;z-index:100;background:rgba(2,8,15,.78);display:none;align-items:flex-end;justify-content:center;padding:14px;backdrop-filter:blur(8px)}
+.modal-backdrop.show{display:flex}.time-modal{width:min(100%,560px);max-height:82vh;overflow:auto;background:linear-gradient(180deg,#172942,#102037);border:1px solid var(--line);border-radius:22px;padding:16px}
+.time-modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}.time-modal-head h3{margin:0;font-size:19px}.time-modal-head p{margin:4px 0 0;color:var(--muted);font-size:12px}
+.close-modal{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:#0b1828;color:white}
+.time-options{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.time-option{min-height:48px;border-radius:13px;border:1px solid var(--line);background:#091625;color:white;font-weight:900}.time-option.recommended{border-color:var(--green);background:rgba(78,213,160,.12);color:#9af0cb}
+.sticky{position:fixed;left:0;right:0;bottom:0;z-index:30;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(7,16,28,.98) 30%)}
+.sticky-inner{max-width:1080px;margin:auto;display:grid;grid-template-columns:.7fr 1.3fr;gap:9px}
+.toast{position:fixed;left:50%;bottom:92px;transform:translate(-50%,14px);opacity:0;transition:.2s;background:white;color:#07101c;font-weight:900;padding:11px 15px;border-radius:12px;z-index:90}.toast.show{opacity:1;transform:translate(-50%,0)}
+@media(min-width:740px){.roster{grid-template-columns:repeat(4,1fr)}.activity-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.activity-grid .card{margin:0}.candidates{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="top">
+  <div class="brand"><div class="logo">↔</div><div><h1>Planejador de Revezamento</h1><div class="sub">Primeiro coleta a ronda; depois encontra o melhor encaixe.</div></div></div>
+  <div class="progress"><span class="on"></span><span></span><span></span><span></span><span></span><span></span></div>
+</header>
+
+<section class="step active" data-step="0">
+  <div class="head"><div class="eyebrow">Etapa 1 de 6</div><h2>Quem está no turno?</h2><p>Selecione os preparadores presentes.</p></div>
+  <div class="card"><div class="card-title"><h3>Preparadores</h3><span id="count" class="small"></span></div><div id="roster" class="roster"></div><div class="row" style="margin-top:12px"><input id="newName" class="input" placeholder="Adicionar nome"><button id="addName" class="btn secondary">Adicionar</button></div></div>
+</section>
+
+<section class="step" data-step="1">
+  <div class="head"><div class="eyebrow">Etapa 2 de 6</div><h2>Cole o relatório</h2><p>Linhas com ✅, manutenção, nomes não selecionados e setups do 3º turno serão ignorados.</p></div>
+  <div class="card"><textarea id="report" class="textarea"></textarea><div class="helper">Primeiro o sistema importa. Depois você faz a ronda em ordem: setups, ajustes e encaixes.</div><div class="grid2" style="margin-top:12px"><button id="example" class="btn secondary">Exemplo</button><button id="parse" class="btn primary">Ler relatório</button></div></div>
+</section>
+
+<section class="step" data-step="2">
+  <div class="head"><div class="eyebrow">Etapa 3 de 6</div><h2>Ronda dos setups</h2><p>Pergunte se precisa de revezamento e registre o horário que gostaria de jantar.</p></div>
+  <div id="setupActivities" class="activity-grid"></div>
+</section>
+
+<section class="step" data-step="3">
+  <div class="head"><div class="eyebrow">Etapa 4 de 6</div><h2>Ronda dos ajustes</h2><p>Informe se termina antes da janta. Se não terminar, o ajuste também passa a precisar de revezamento.</p></div>
+  <div id="adjustActivities" class="activity-grid"></div>
+</section>
+
+<section class="step" data-step="4">
+  <div class="head"><div class="eyebrow">Etapa 5 de 6</div><h2>Assistente de encaixe</h2><p>Agora o sistema compara preferências e mostra mudanças que resolvem mais situações.</p></div>
+  <div class="card">
+    <div class="card-title"><div><h3>🧠 Sugestões da ronda</h3><div class="small">Cada sugestão explica o motivo e o ganho.</div></div><span class="badge ok">Análise</span></div>
+    <div id="smartSuggestions" class="assistant-list"></div>
+  </div>
+  <div class="card">
+    <div class="card-title"><h3>Próximos setups</h3><span class="badge warn">Sugestões</span></div>
+    <div class="helper" style="margin-bottom:12px">Ao assumir um próximo setup, o preparador fica bloqueado para novos revezamentos e outros setups até o fim do turno.</div>
+    <div id="futureActivities"></div>
+  </div>
+  <div class="card"><div class="card-title"><h3>Linha do tempo conjunta</h3></div><div id="timelineBox" class="timeline-wrap"></div></div>
+</section>
+
+<section class="step" data-step="5">
+  <div class="head"><div class="eyebrow">Etapa 6 de 6</div><h2>Plano final</h2><p>Linha do tempo completa por preparador.</p></div>
+  <div class="card"><div class="card-title"><h3>Resumo</h3><button id="copyTop" class="btn ghost">Copiar</button></div><div id="review"></div></div>
+  <div class="card"><div class="card-title"><h3>WhatsApp</h3></div><div id="message" class="preview"></div></div>
+</section>
+</div>
+
+<div id="timeModal" class="modal-backdrop">
+  <div class="time-modal">
+    <div class="time-modal-head"><div><h3 id="timeTitle">Escolher horário</h3><p id="timeSubtitle">Selecione uma opção.</p></div><button id="closeModal" class="close-modal">✕</button></div>
+    <div id="timeSuggestion" class="suggestion-box"></div>
+    <div id="timeOptions" class="time-options"></div>
+  </div>
+</div>
+
+<div class="sticky"><div class="sticky-inner"><button id="back" class="btn secondary">Voltar</button><button id="next" class="btn primary">Continuar</button></div></div>
+<div id="toast" class="toast"></div>
+
+<script>
+(()=>{
+const BASE=["Lucas V.","Lucas R.","Marlon","Ewerson","Everson","Clayton","Wendel","Gabriel","Adriano","Luciano","Juliano","Nattan","Marcio","Christoffer","Patrício","Mateus","Alan","Shaiane","Willians"];
+const state={step:0,roster:[...BASE],present:new Set(),activities:[],meals:{}};
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const norm=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().trim();
+const uid=()=>crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2);
+const toMin=t=>{const[h,m]=t.split(":").map(Number);return h*60+m};
+const toTime=m=>`${String(Math.floor(m/60)).padStart(2,"0")}:${String(m%60).padStart(2,"0")}`;
+const overlap=(a,b,c,d)=>Math.max(a,c)<Math.min(b,d);
+function toast(x){const t=$("#toast");t.textContent=x;t.classList.add("show");clearTimeout(window.__t);window.__t=setTimeout(()=>t.classList.remove("show"),1500)}
+function slots(){const out=[];for(let m=18*60;m<=21*60;m+=15)out.push(toTime(m));return out}
+
+function renderRoster(){
+ $("#roster").innerHTML="";
+ state.roster.forEach(n=>{const b=document.createElement("button");b.className="chip"+(state.present.has(n)?" sel":"");b.innerHTML=`<strong>${n}</strong><span class="tick">✓</span>`;b.onclick=()=>{state.present.has(n)?state.present.delete(n):state.present.add(n);renderRoster()};$("#roster").appendChild(b)});
+ $("#count").textContent=`${state.present.size} selecionados`;
+}
+function exactName(line){
+ const u=norm(line);
+ return [...state.present].sort((a,b)=>b.length-a.length).find(n=>{const e=norm(n).replace(/[.*+?^${}()|[\]\\]/g,"\\$&");return new RegExp(`(^|[^A-Z0-9])${e}([^A-Z0-9]|$)`).test(u)})||null;
+}
+function sectionOf(line){
+ const u=norm(line).replace(/\*/g,"");
+ if(u.includes("MAQUINAS EM MANUTENCAO PARADA"))return"maintenance";
+ if(/^SETUP:?$/.test(u))return"setup";
+ if(u.includes("PROXIMOS SETUPS"))return"future";
+ if(u.includes("SETUPS 3°T")||u.includes("SETUPS 3ºT")||u.includes("SETUPS 3T"))return"third";
+ if(u.includes("MAQUINAS EM AJUSTES"))return"adjust";
+ return null;
+}
+function parseReport(){
+ const raw=$("#report").value.trim();if(!raw){toast("Cole o relatório");return false}
+ let section="";const acts=[];
+ for(const line of raw.split(/\n/).map(x=>x.trim()).filter(Boolean)){
+   const sec=sectionOf(line);if(sec){section=sec;continue}
+   if(line.includes("✅")||section==="maintenance"||section==="third"||!["setup","future","adjust"].includes(section))continue;
+   const mm=line.match(/TNL\s*0*(\d{1,3})/i);if(!mm)continue;
+   const machine=`TNL ${String(mm[1]).padStart(3,"0")}`;
+   const time=(line.match(/\((\d{1,2}:\d{2})\)/)||line.match(/\b(\d{1,2}:\d{2})\b/)||[])[1]||null;
+   if(section==="future"){if(!acts.some(a=>a.type==="future"&&a.machine===machine))acts.push({id:uid(),type:"future",machine,owner:null,start:time||"18:00"});continue}
+   const owner=exactName(line);if(!owner)continue;
+   const type=section==="setup"?"setup":"adjust";
+   if(!acts.some(a=>a.type===type&&a.machine===machine))acts.push({id:uid(),type,machine,owner,needs:null,preferredMeal:null,finalMeal:null,finish:null,coverer:null});
+ }
+ state.activities=acts;state.meals={};
+ if(!acts.length){toast("Nenhuma atividade válida");return false}
+ renderAll();return true;
+}
+
+function baseEvents(name,exceptId=null){
+ const e=[];
+ state.activities.forEach(a=>{
+   if(a.id===exceptId||a.owner!==name)return;
+   if(a.type==="setup"){
+     const end=(a.needs===false&&a.finish)?toMin(a.finish):22*60;
+     e.push({start:18*60,end,type:"setup",label:a.machine,source:a.id});
+   }
+   if(a.type==="adjust"){
+     const end=a.finish?toMin(a.finish):22*60;
+     e.push({start:18*60,end,type:"adjust",label:`Ajuste ${a.machine}`,source:a.id});
+   }
+   if(a.type==="future"&&a.start&&a.owner===name){
+     e.push({start:toMin(a.start),end:22*60,type:"setup",label:`Setup ${a.machine}`,source:a.id});
+   }
+ });
+ return e;
+}
+function agendaFor(name,exceptId=null){
+ const e=[...baseEvents(name,exceptId)];
+ const meal=state.meals[name];
+ if(meal){const s=toMin(meal);e.push({start:s,end:s+60,type:"meal",label:"Jantar"})}
+ state.activities.forEach(a=>{
+   if(a.id===exceptId||!a.coverer||a.coverer!==name||!a.finalMeal)return;
+   const s=toMin(a.finalMeal);e.push({start:s,end:s+60,type:"cover",label:`Cobre ${a.machine}`,source:a.id});
+ });
+ return e.sort((a,b)=>a.start-b.start);
+}
+function conflict(events,s,e){return events.some(x=>overlap(x.start,x.end,s,e))}
+function freeWindows(name,exceptId=null){
+ const events=agendaFor(name,exceptId).filter(e=>e.end>18*60&&e.start<22*60).sort((a,b)=>a.start-b.start);
+ const out=[];let c=18*60;
+ for(const e of events){if(e.start>c)out.push({start:c,end:e.start});c=Math.max(c,e.end)}
+ if(c<22*60)out.push({start:c,end:22*60});
+ return out.filter(w=>w.end>w.start);
+}
+function canCover(name,a,time){
+ const s=toMin(time),e=s+60;
+ if(name===a.owner)return false;
+ const meal=state.meals[name];
+ if(meal&&overlap(toMin(meal),toMin(meal)+60,s,e))return false;
+ return !conflict(agendaFor(name,a.id),s,e);
+}
+function bestCoverer(a,time){
+ return [...state.present].filter(n=>canCover(n,a,time)).sort((x,y)=>{
+   const wx=freeWindows(x,a.id).find(w=>w.start<=toMin(time)&&w.end>=toMin(time)+60);
+   const wy=freeWindows(y,a.id).find(w=>w.start<=toMin(time)&&w.end>=toMin(time)+60);
+   return (wy?wy.end-wy.start:0)-(wx?wx.end-wx.start:0);
+ })[0]||null;
+}
+
+const picker={type:null,id:null,person:null};
+function openPicker(type,id=null,person=null){
+ picker.type=type;picker.id=id;picker.person=person;
+ const a=id?state.activities.find(x=>x.id===id):null;
+ let suggested="19:00",title="Escolher horário",desc="";
+ if(type==="preferredMeal"){title=`Preferência de jantar de ${a.owner}`;suggested=a.preferredMeal||"20:30";desc="Registre primeiro o horário que a pessoa gostaria de jantar."}
+ if(type==="finish"){title=`Que horas ${a.owner} termina?`;suggested=a.finish||"19:30";desc="O término cria uma janela livre real na agenda."}
+ if(type==="personMeal"){title=`Que horas ${person} vai jantar?`;suggested=state.meals[person]||a?.finish||"19:30";desc="O sistema usará esse horário para calcular quando a pessoa fica livre."}
+ if(type==="futureStart"){title=`Início da ${a.machine}`;suggested=a.start||"19:00";desc="As sugestões de responsável serão recalculadas."}
+ $("#timeTitle").textContent=title;$("#timeSubtitle").textContent=desc;
+ $("#timeSuggestion").innerHTML=`<strong>⭐ Sugestão inicial: ${suggested}</strong><span>Você pode escolher outro horário. Depois o assistente compara todas as possibilidades.</span>`;
+ $("#timeOptions").innerHTML=slots().map(t=>`<button class="time-option ${t===suggested?"recommended":""}" data-pick="${t}">${t}</button>`).join("");
+ $$("[data-pick]").forEach(b=>b.onclick=()=>applyTime(b.dataset.pick));
+ $("#timeModal").classList.add("show");
+}
+function applyTime(t){
+ const a=picker.id?state.activities.find(x=>x.id===picker.id):null;
+ if(picker.type==="preferredMeal"&&a){a.preferredMeal=t;a.finalMeal=t;state.meals[a.owner]=t}
+ if(picker.type==="finish"&&a)a.finish=t;
+ if(picker.type==="personMeal"&&picker.person){state.meals[picker.person]=t;if(a){a.finalMeal=t;a.preferredMeal=a.preferredMeal||t}}
+ if(picker.type==="futureStart"&&a)a.start=t;
+ $("#timeModal").classList.remove("show");renderAll();
+}
+
+function setupCard(a){
+ return `<article class="card activity"><div class="activity-main"><div class="activity-top"><div><div class="machine">🔴 ${a.machine}</div><div class="owner">${a.owner}</div></div><span class="badge setup">SETUP</span></div>
+ <div class="choice"><button data-setup-need="${a.id}" data-v="false" class="${a.needs===false?"on":""}">Não precisa</button><button data-setup-need="${a.id}" data-v="true" class="${a.needs===true?"on":""}">Precisa revezar</button></div></div>
+ ${a.needs!==null?`<div class="detail">
+   ${a.needs===false?`<div class="grid2"><div><div class="small">Termina o setup</div><button class="time-button" data-time="finish" data-id="${a.id}">${a.finish||"19:00"}</button></div><div><div class="small">Quer jantar</div><button class="time-button" data-time="preferredMeal" data-id="${a.id}">${a.preferredMeal||"20:30"}</button></div></div>`:
+   `<div><div class="small">Horário que gostaria de jantar</div><button class="time-button" data-time="preferredMeal" data-id="${a.id}">${a.preferredMeal||"20:30"}</button></div>`}
+ </div>`:""}</article>`;
+}
+function adjustCard(a){
+ return `<article class="card activity"><div class="activity-main"><div class="activity-top"><div><div class="machine">🟡 ${a.machine}</div><div class="owner">${a.owner}</div></div><span class="badge adjust">AJUSTE</span></div></div>
+ <div class="detail"><div class="small">Consegue terminar antes da janta?</div><div class="choice"><button data-adjust="${a.id}" data-v="finish" class="${a.finish?"on":""}">Sim</button><button data-adjust="${a.id}" data-v="cover" class="${a.needs===true?"on":""}">Não, precisa revezar</button></div>
+ ${a.finish?`<div class="grid2" style="margin-top:10px"><div><div class="small">Termina</div><button class="time-button" data-time="finish" data-id="${a.id}">${a.finish}</button></div><div><div class="small">Vai jantar</div><button class="time-button" data-time="personMeal" data-person="${a.owner}" data-id="${a.id}">${state.meals[a.owner]||a.finish}</button></div></div>`:""}
+ ${a.needs===true?`<div style="margin-top:10px"><div class="small">Horário que gostaria de jantar</div><button class="time-button" data-time="preferredMeal" data-id="${a.id}">${a.preferredMeal||"20:30"}</button></div>`:""}
+ </div></article>`;
+}
+
+function smartOptions(){
+ const suggestions=[];
+ const needs=state.activities.filter(a=>a.needs===true&&a.preferredMeal);
+
+ for(const a of needs){
+   const pref=toMin(a.preferredMeal);
+   const candidateTimes=slots().map(toMin).filter(t=>t>=18*60&&t<=20*60+30);
+
+   for(const t of candidateTimes){
+     const coverer=bestCoverer(a,toTime(t));
+     if(!coverer)continue;
+
+     let gain=0;
+     const reasons=[];
+     const future=state.activities
+       .filter(x=>x.type==="future"&&!x.owner&&toMin(x.start)>=t+60)
+       .sort((x,y)=>toMin(x.start)-toMin(y.start))[0]||null;
+
+     const nextNeed=needs
+       .filter(x=>x.id!==a.id&&toMin(x.preferredMeal)>=t+60)
+       .sort((x,y)=>toMin(x.preferredMeal)-toMin(y.preferredMeal))[0]||null;
+
+     if(t!==pref){
+       gain+=10;
+       reasons.push(`muda ${a.owner} de ${a.preferredMeal} para ${toTime(t)}`);
+     }else{
+       gain+=5;
+     }
+
+     // IMPORTANT: choose only one path after the revezamento.
+     // If the preparador takes a future setup, they are blocked until end of shift.
+     let path="coverOnly";
+
+     if(future){
+       const futureStart=toMin(future.start);
+       const canReachFuture=t+60<=futureStart;
+
+       if(canReachFuture){
+         path="future";
+         gain+=35;
+         reasons.push(`${coverer} pode assumir ${future.machine} às ${future.start} e fica dedicado ao setup`);
+       }
+     }
+
+     // Only consider another revezamento if not taking a setup.
+     if(path!=="future" && nextNeed && canCover(coverer,nextNeed,nextNeed.preferredMeal)){
+       path="nextCover";
+       gain+=30;
+       reasons.push(`${coverer} também pode revezar ${nextNeed.owner} às ${nextNeed.preferredMeal}`);
+     }
+
+     suggestions.push({
+       a,
+       time:toTime(t),
+       coverer,
+       future:path==="future"?future:null,
+       nextNeed:path==="nextCover"?nextNeed:null,
+       path,
+       gain,
+       reasons
+     });
+   }
+ }
+
+ return suggestions.sort((x,y)=>y.gain-x.gain).slice(0,8);
+}
+function renderSmart(){
+ const box=$("#smartSuggestions");const list=smartOptions();
+ if(!list.length){box.innerHTML=`<div class="empty">Complete os horários da ronda para o sistema comparar os encaixes.</div>`;return}
+ box.innerHTML=list.map((s,i)=>`<div class="assistant-card ${i===0?"best":""}">
+ <div class="assistant-top"><div><div class="assistant-name">${s.a.owner} — ${s.a.machine}</div><div class="small">Preferência: ${s.a.preferredMeal}</div></div><span class="badge ${i===0?"ok":"warn"}">${i===0?"Melhor encaixe":"Alternativa"}</span></div>
+ <div class="sequence">
+   <div class="sequence-step"><strong>${s.time}</strong><span>${s.a.owner} vai jantar e ${s.coverer} assume ${s.a.machine}.</span></div>
+   ${s.future?`<div class="sequence-step"><strong>${s.future.start}</strong><span>${s.coverer} assume ${s.future.machine} e fica dedicado ao setup até o fim do turno.</span></div>`:""}
+   ${s.nextNeed?`<div class="sequence-step"><strong>${s.nextNeed.preferredMeal}</strong><span>${s.coverer} pode ajudar ${s.nextNeed.owner} na ${s.nextNeed.machine}.</span></div>`:""}
+ </div>
+ <div class="suggestion-box"><strong>Por que é melhor?</strong><span>${s.reasons.length?s.reasons.join(" • "):"Mantém a preferência e não cria conflito."}${s.future?" • Depois que assumir o setup, não poderá fazer outro revezamento.":""}</span></div>
+ <div class="grid2" style="margin-top:10px"><button class="btn primary" data-apply-smart="${s.a.id}" data-time="${s.time}" data-coverer="${s.coverer}">Aplicar sugestão</button><button class="btn secondary" data-keep="${s.a.id}">Manter preferência</button></div>
+ </div>`).join("");
+ $$("[data-apply-smart]").forEach(b=>b.onclick=()=>{
+   const a=state.activities.find(x=>x.id===b.dataset.applySmart);
+   const suggestion=smartOptions().find(s=>s.a.id===a.id&&s.time===b.dataset.time&&s.coverer===b.dataset.coverer);
+
+   a.finalMeal=b.dataset.time;
+   a.coverer=b.dataset.coverer;
+   state.meals[a.owner]=a.finalMeal;
+
+   if(suggestion?.future){
+     suggestion.future.owner=suggestion.coverer;
+   }
+
+   renderAll();
+   toast("Sugestão aplicada");
+ });
+ $$("[data-keep]").forEach(b=>b.onclick=()=>{const a=state.activities.find(x=>x.id===b.dataset.keep);a.finalMeal=a.preferredMeal;state.meals[a.owner]=a.preferredMeal;renderAll();toast("Preferência mantida")});
+}
+function futureCandidates(a){
+ const start=toMin(a.start);
+
+ return [...state.present].map(name=>{
+   const alreadyAssignedFuture=state.activities.some(x=>
+     x.type==="future" &&
+     x.id!==a.id &&
+     x.owner===name
+   );
+
+   if(alreadyAssignedFuture){
+     return{
+       name,
+       win:null,
+       disabled:true,
+       score:0,
+       reason:"Já está dedicado a outro próximo setup."
+     };
+   }
+
+   const win=freeWindows(name,a.id).find(w=>w.start<=start&&w.end>start);
+   const disabled=!win||conflict(agendaFor(name,a.id),start,start+15);
+   const score=disabled?0:100+(win.end-start)+(state.meals[name]&&toMin(state.meals[name])+60<=start?20:0);
+
+   return{
+     name,
+     win,
+     disabled,
+     score,
+     reason:disabled?"Sem janela livre para iniciar o setup.":`Livre de ${toTime(win.start)} até o início e ficará dedicado ao setup.`
+   };
+ }).sort((x,y)=>y.score-x.score);
+}
+function renderFuture(){
+ const box=$("#futureActivities");const futures=state.activities.filter(a=>a.type==="future");
+ box.innerHTML=futures.map(a=>{const opts=futureCandidates(a),best=opts.find(x=>!x.disabled);return`<div class="review"><strong>🔴 ${a.machine} — ${a.start}</strong><div class="small" style="margin-top:5px">Responsável: ${a.owner||"não definido"}</div><div class="candidates">${opts.slice(0,5).map(o=>`<button class="candidate ${a.owner===o.name?"selected":""} ${o.disabled?"disabled":""}" data-future="${a.id}" data-name="${o.name}" ${o.disabled?"disabled":""}><div class="candidate-top"><span class="candidate-name">${o.name}</span><span class="badge ${o.name===best?.name?"ok":o.disabled?"off":"warn"}">${o.name===best?.name?"Melhor opção":o.disabled?"Indisponível":"Possível"}</span></div><div class="reason">${o.reason||"Sem janela livre"}</div></button>`).join("")}</div></div>`}).join("");
+ $$("[data-future]").forEach(b=>b.onclick=()=>{const a=state.activities.find(x=>x.id===b.dataset.future);a.owner=b.dataset.name;renderAll()});
+}
+function renderTimeline(){
+ const start=18*60,slotsN=16;let h=`<div class="timeline"><div class="time-head"><div>Preparador</div>`;for(let i=0;i<slotsN;i++)h+=`<div>${toTime(start+i*15)}</div>`;h+=`</div>`;
+ [...state.present].forEach(n=>{const ev=agendaFor(n);h+=`<div class="time-row"><div class="person">${n}</div>`;for(let i=0;i<slotsN;i++){const s=start+i*15,e=s+15,x=ev.find(v=>overlap(v.start,v.end,s,e));const cls=x?x.type==="meal"?"ev-meal":x.type==="cover"?"ev-cover":x.type==="adjust"?"ev-adjust":"ev-busy":"ev-free";h+=`<div class="slot"><div class="event ${cls}">${i%4===0?(x?x.label:"Livre"):""}</div></div>`}h+=`</div>`});h+=`</div>`;$("#timelineBox").innerHTML=h;
+}
+function personTimeline(name){
+ const out=[];const meal=state.meals[name];if(meal)out.push({s:toMin(meal),t:`🍽️ Jantar: ${meal} às ${toTime(toMin(meal)+60)}`});
+ state.activities.forEach(a=>{
+   if(a.owner===name){
+     if(a.type==="setup")out.push({s:18*60,t:`🔴 ${a.machine}`});
+     if(a.type==="adjust")out.push({s:18*60,t:`🟡 Ajuste ${a.machine}`});
+     if(a.finish)out.push({s:toMin(a.finish),t:`✅ Termina às ${a.finish}`});
+     if(a.type==="future")out.push({s:toMin(a.start),t:`🔴 Assume ${a.machine} às ${a.start}`});
+   }
+   if(a.coverer===name&&a.finalMeal)out.push({s:toMin(a.finalMeal),t:`🔄 ${a.finalMeal} às ${toTime(toMin(a.finalMeal)+60)} — cobre ${a.owner} na ${a.machine}`});
+ });return out.sort((a,b)=>a.s-b.s);
+}
+function buildMessage(){
+ const lines=["*REVEZAMENTO — LINHA DO TEMPO*",""];[...state.present].filter(n=>personTimeline(n).length).forEach(n=>{lines.push(`*${n.toUpperCase()}*`);personTimeline(n).forEach(e=>lines.push(e.t));const w=freeWindows(n);if(w.length)lines.push(`🟢 Livre: ${w.map(x=>`${toTime(x.start)}–${toTime(x.end)}`).join(" • ")}`);lines.push("")});return lines.join("\n").trim();
+}
+function renderReview(){
+ $("#review").innerHTML=[...state.present].filter(n=>personTimeline(n).length).map(n=>`<div class="review"><strong>${n}</strong>${personTimeline(n).map(e=>`<div class="small" style="margin-top:6px">${e.t}</div>`).join("")}</div>`).join("")||`<div class="empty">Nenhum item.</div>`;
+ $("#message").textContent=buildMessage();
+}
+function bind(){
+ $$("[data-setup-need]").forEach(b=>b.onclick=()=>{
+   const a=state.activities.find(x=>x.id===b.dataset.setupNeed);
+   a.needs=b.dataset.v==="true";
+
+   if(a.needs===false){
+     a.finish=a.finish||"19:00";
+     a.preferredMeal=a.preferredMeal||"20:30";
+     a.finalMeal=a.finalMeal||a.preferredMeal;
+     state.meals[a.owner]=state.meals[a.owner]||a.preferredMeal;
+   }else{
+     a.preferredMeal=a.preferredMeal||"20:30";
+     a.finalMeal=a.finalMeal||a.preferredMeal;
+     state.meals[a.owner]=state.meals[a.owner]||a.preferredMeal;
+   }
+
+   renderAll();
+ });
+ $$("[data-adjust]").forEach(b=>b.onclick=()=>{const a=state.activities.find(x=>x.id===b.dataset.adjust);if(b.dataset.v==="finish"){a.finish=a.finish||"19:30";a.needs=false;state.meals[a.owner]=state.meals[a.owner]||a.finish}else{a.finish=null;a.needs=true;a.preferredMeal=a.preferredMeal||"20:30";a.finalMeal=a.preferredMeal;state.meals[a.owner]=a.preferredMeal}renderAll()});
+ $$("[data-time]").forEach(b=>b.onclick=()=>openPicker(b.dataset.time,b.dataset.id||null,b.dataset.person||null));
+}
+function renderAll(){
+ $("#setupActivities").innerHTML=state.activities.filter(a=>a.type==="setup").map(setupCard).join("")||`<div class="card empty">Nenhum setup atual.</div>`;
+ $("#adjustActivities").innerHTML=state.activities.filter(a=>a.type==="adjust").map(adjustCard).join("")||`<div class="card empty">Nenhum ajuste.</div>`;
+ bind();if(state.step>=4){renderSmart();renderFuture();renderTimeline()}if(state.step===5)renderReview();
+}
+function validate(){
+ if(state.step===0&&state.present.size<2){toast("Selecione ao menos 2");return false}
+ if(state.step===1)return parseReport();
+ if(state.step===2){
+   const pending=state.activities.find(a=>a.type==="setup"&&(a.needs===null||!a.preferredMeal||(a.needs===false&&!a.finish)));
+   if(pending){
+     toast(`Complete ${pending.owner} — ${pending.machine}`);
+     return false;
+   }
+ }
+ if(state.step===3&&state.activities.some(a=>a.type==="adjust"&&!a.finish&&a.needs!==true)){toast("Complete a ronda dos ajustes");return false}
+ return true;
+}
+function update(){
+ $$(".step").forEach((x,i)=>x.classList.toggle("active",i===state.step));$$(".progress span").forEach((x,i)=>x.classList.toggle("on",i<=state.step));$("#back").style.visibility=state.step===0?"hidden":"visible";$("#next").textContent=state.step===5?"Copiar para WhatsApp":"Continuar";renderAll();window.scrollTo({top:0,behavior:"smooth"});
+}
+async function copy(){const t=buildMessage();try{await navigator.clipboard.writeText(t)}catch{const x=document.createElement("textarea");x.value=t;document.body.appendChild(x);x.select();document.execCommand("copy");x.remove()}toast("Mensagem copiada")}
+$("#addName").onclick=()=>{const n=$("#newName").value.trim();if(!n)return;if(!state.roster.some(x=>norm(x)===norm(n)))state.roster.push(n);state.present.add(state.roster.find(x=>norm(x)===norm(n)));$("#newName").value="";renderRoster()};
+$("#example").onclick=()=>{$("#report").value=`*SETUP:*
+🔴 TNL 029 - EWERSON
+🔴 TNL 073 - CLAYTON
+🔴 TNL 077 - WENDEL
+
+*PRÓXIMOS SETUPS:*
+🔴 TNL 005 - Setup 2°T (20:30)
+🔴 TNL 027 - Setup 2°T (19:00)
+
+*MAQUINAS EM AJUSTES:*
+TNL 061 - EVERSON`;toast("Exemplo carregado")};
+$("#parse").onclick=()=>{if(parseReport()){state.step=2;update()}};
+$("#back").onclick=()=>{if(state.step>0){state.step--;update()}};
+$("#next").onclick=()=>{if(state.step===5){copy();return}if(validate()){state.step++;update()}};
+$("#copyTop").onclick=copy;
+$("#closeModal").onclick=()=>$("#timeModal").classList.remove("show");
+$("#timeModal").onclick=e=>{if(e.target===$("#timeModal"))$("#timeModal").classList.remove("show")};
+renderRoster();update();
+})();
+</script>
+</body>
+</html>
