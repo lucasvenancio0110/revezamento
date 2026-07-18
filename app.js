@@ -1,1 +1,201 @@
-(()=>{const BASE=["Lucas V.","Lucas R.","Marlon","Ewerson","Everson","Clayton","Wendel","Gabriel","Adriano","Luciano","Juliano","Nattan","Marcio","Christoffer","Patrício","Mateus","Alan","Shaiane","Willians"],state={step:0,roster:[...BASE],present:new Set(),activities:[],meals:{},assignments:{}};const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],norm=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().trim(),uid=()=>Math.random().toString(36).slice(2),toMin=t=>{const[h,m]=String(t).split(":").map(Number);return h*60+m},toTime=m=>`${String(Math.floor(m/60)).padStart(2,"0")}:${String(m%60).padStart(2,"0")}`,overlap=(a,b,c,d)=>Math.max(a,c)<Math.min(b,d);function toast(x){const t=$("#toast");t.textContent=x;t.classList.add("show");clearTimeout(window.__t);window.__t=setTimeout(()=>t.classList.remove("show"),1500)}function renderRoster(){$("#roster").innerHTML=state.roster.map(n=>`<button class="chip ${state.present.has(n)?"sel":""}" data-person="${n}">${n}</button>`).join("");$$('[data-person]').forEach(b=>b.onclick=()=>{state.present.has(b.dataset.person)?state.present.delete(b.dataset.person):state.present.add(b.dataset.person);renderRoster()});$("#count").textContent=`${state.present.size} selecionados`}function exactName(line){const u=norm(line);return [...state.present].sort((a,b)=>b.length-a.length).find(n=>u.includes(norm(n)))||null}function parseReport(){const raw=$("#report").value.trim();if(!raw){toast("Cole o relatório");return false}let section="",acts=[];for(const line of raw.split(/\n/).map(x=>x.trim()).filter(Boolean)){const u=norm(line).replace(/\*/g,"");if(/^SETUP:?$/.test(u)){section="setup";continue}if(u.includes("PROXIMOS SETUPS")){section="future";continue}if(u.includes("SETUPS 3")||u.includes("MANUTENCAO")){section="ignore";continue}if(u.includes("MAQUINAS EM AJUSTES")||u==="AJUSTES:"){section="adjust";continue}if(line.includes("✅")||!["setup","future","adjust"].includes(section))continue;const mm=line.match(/TNL\s*0*(\d{1,3})/i);if(!mm)continue;const machine=`TNL ${String(mm[1]).padStart(3,"0")}`,time=(line.match(/\b(\d{1,2}:\d{2})\b/)||[])[1]||null;if(section==="future"){acts.push({id:uid(),type:"future",machine,start:time||"20:30",owner:null});continue}const owner=exactName(line);if(!owner)continue;acts.push({id:uid(),type:section,machine,owner,needs:null,preferred:"20:30",finish:null})}state.activities=acts;state.assignments={};state.meals={};renderRound();return acts.length>0}function busyBase(name){const e=[];state.activities.forEach(a=>{if(a.owner!==name)return;if(a.type==="setup")e.push({s:1080,e:a.finish?toMin(a.finish):1320,label:a.machine,type:"busy"});if(a.type==="adjust")e.push({s:1080,e:a.finish?toMin(a.finish):1320,label:`Ajuste ${a.machine}`,type:"busy"})});return e}function agenda(name,ignoreId=null){const e=[...busyBase(name)],meal=state.meals[name];if(meal)e.push({s:toMin(meal),e:toMin(meal)+60,label:"Jantar",type:"meal"});Object.entries(state.assignments).forEach(([id,x])=>{if(id===ignoreId||x.coverer!==name)return;const a=state.activities.find(z=>z.id===id);e.push({s:toMin(x.time),e:toMin(x.time)+60,label:`Cobre ${a.owner} na ${a.machine}`,type:"cover"})});state.activities.filter(a=>a.type==="future"&&a.owner===name).forEach(a=>e.push({s:toMin(a.start),e:1320,label:`Inicia ${a.machine}`,type:"future"}));return e.sort((a,b)=>a.s-b.s)}function candidateStatus(name,a,time){const s=toMin(time),e=s+60,ag=agenda(name,a.id);if(name===a.owner)return{level:"bad",title:"Não funciona",reason:"É o próprio responsável."};if(s>1230)return{level:"bad",title:"Não funciona",reason:"O último início de jantar é 20:30."};if(ag.some(x=>overlap(x.s,x.e,s,e)))return{level:"bad",title:"Não funciona",reason:"Já existe compromisso nesse horário."};const meal=state.meals[name];if(!meal)return{level:"warn",title:"Funciona, mas falta a janta",reason:"Defina a janta desse preparador antes de confirmar."};if(toMin(meal)>1230)return{level:"bad",title:"Não funciona",reason:"A janta dele começaria depois de 20:30."};const future=state.activities.filter(f=>f.type==="future"&&f.owner===name).sort((x,y)=>toMin(x.start)-toMin(y.start))[0];if(future&&e>toMin(future.start))return{level:"bad",title:"Não funciona",reason:`Conflita com ${future.machine} às ${future.start}.`};const n=ag.filter(x=>x.type==="cover").length;return{level:"good",title:n?"Boa escolha":"Melhor encaixe",reason:n?"Encaixa na sequência já montada.":"Não cria conflito e mantém a agenda funcional."}}function miniTimeline(name,a,time){const list=agenda(name,a.id).filter(x=>x.e>1080&&x.s<1320);list.push({s:toMin(time),e:toMin(time)+60,label:`Cobre ${a.owner} na ${a.machine}`});return list.sort((x,y)=>x.s-y.s).map(x=>`<div class="mini-event"><time>${toTime(x.s)}</time><span>${x.label}${x.e<1320?` — até ${toTime(x.e)}`:" — até o fim"}</span></div>`).join("")}function candidateList(a){return [...state.present].filter(n=>n!==a.owner).map(n=>({n,st:candidateStatus(n,a,a.preferred)})).sort((x,y)=>({good:0,warn:1,bad:2}[x.st.level]-({good:0,warn:1,bad:2}[y.st.level])).slice(0,6).map(({n,st})=>`<button class="candidate" data-pick-cover="${a.id}" data-name="${n}"><div class="candidate-top"><strong>${n}</strong><span class="${st.level}">${st.title}</span></div><div class="small" style="margin-top:5px">${st.reason}</div>${st.level!=="bad"?`<div class="timeline-mini">${miniTimeline(n,a,a.preferred)}</div>`:""}</button>`).join("")}function coverBlock(a){const x=state.assignments[a.id];return `<div class="cover-panel"><div class="small">Quem vai cobrir?</div>${x?`<div class="compact"><div class="compact-row"><div><strong>${x.coverer}</strong><div class="small">${x.time}–${toTime(toMin(x.time)+60)}</div></div><button class="btn secondary" data-change="${a.id}">Trocar</button></div><div class="timeline-mini">${miniTimeline(x.coverer,a,x.time)}</div></div>`:`<div class="candidate-list">${candidateList(a)}</div>`}</div>`}function setupCard(a){return `<article class="card activity"><div class="activity-main"><div class="activity-top"><div><div class="machine">🔴 ${a.machine}</div><div class="owner">${a.owner}</div></div><span class="badge setup">SETUP</span></div><div class="choice"><button data-need="${a.id}" data-v="0" class="${a.needs===false?"on":""}">Não precisa</button><button data-need="${a.id}" data-v="1" class="${a.needs===true?"on":""}">Precisa revezar</button></div></div>${a.needs!==null?`<div class="detail"><div class="grid2">${a.needs===false?`<div class="field"><label>Termina o setup</label><input class="input" type="time" data-finish="${a.id}" value="${a.finish||"19:30"}"></div>`:""}<div class="field"><label>Horário da janta</label><input class="input" type="time" min="18:00" max="20:30" step="1800" data-pref="${a.id}" value="${a.preferred}"></div></div>${a.needs===true?coverBlock(a):""}</div>`:""}</article>`}function adjustCard(a){return `<article class="card activity"><div class="activity-main"><div class="activity-top"><div><div class="machine">🟡 ${a.machine}</div><div class="owner">${a.owner}</div></div><span class="badge adjust">AJUSTE</span></div><div class="choice"><button data-adjust="${a.id}" data-v="finish" class="${a.finish?"on":""}">Termina</button><button data-adjust="${a.id}" data-v="cover" class="${a.needs===true?"on":""}">Precisa revezar</button></div></div>${a.finish||a.needs===true?`<div class="detail"><div class="grid2">${a.finish?`<div class="field"><label>Termina às</label><input class="input" type="time" data-finish="${a.id}" value="${a.finish}"></div>`:""}<div class="field"><label>Horário da janta</label><input class="input" type="time" min="18:00" max="20:30" step="1800" data-pref="${a.id}" value="${a.preferred}"></div></div>${a.needs===true?coverBlock(a):""}</div>`:""}</article>`}function futureCard(a){return `<div class="card"><div class="activity-top"><div><div class="machine">🔴 ${a.machine}</div><div class="owner">Próximo setup</div></div><span class="badge future">FUTURO</span></div><div class="grid2" style="margin-top:12px"><div class="field"><label>Início</label><input class="input" type="time" data-start="${a.id}" value="${a.start}"></div><div class="field"><label>Responsável</label><select class="select" data-future-owner="${a.id}"><option value="">Decidir depois</option>${[...state.present].map(n=>`<option ${a.owner===n?"selected":""}>${n}</option>`).join("")}</select></div></div></div>`}function renderFreeMeals(){const busy=new Set(state.activities.filter(a=>a.type!=="future").map(a=>a.owner)),free=[...state.present].filter(n=>!busy.has(n));$("#freeMeals").innerHTML=free.length?free.map(n=>`<div class="field" style="margin-bottom:9px"><label>${n}</label><input class="input" type="time" min="18:00" max="20:30" step="1800" data-free-meal="${n}" value="${state.meals[n]||"18:00"}"></div>`).join(""):`<div class="small">Nenhum preparador totalmente livre.</div>`}function renderRound(){renderFreeMeals();$("#setupActivities").innerHTML=state.activities.filter(a=>a.type==="setup").map(setupCard).join("")||'<div class="card empty">Nenhum setup atual.</div>';$("#adjustActivities").innerHTML=state.activities.filter(a=>a.type==="adjust").map(adjustCard).join("")||'<div class="card empty">Nenhum ajuste.</div>';$("#futureActivities").innerHTML=state.activities.filter(a=>a.type==="future").map(futureCard).join("")||'<div class="card empty">Nenhum próximo setup.</div>';bindRound()}function bindRound(){$$('[data-need]').forEach(b=>b.onclick=()=>{const a=state.activities.find(x=>x.id===b.dataset.need);a.needs=b.dataset.v==="1";if(!a.needs)delete state.assignments[a.id];renderRound()});$$('[data-adjust]').forEach(b=>b.onclick=()=>{const a=state.activities.find(x=>x.id===b.dataset.adjust);if(b.dataset.v==="finish"){a.finish=a.finish||"19:30";a.needs=false;delete state.assignments[a.id]}else{a.finish=null;a.needs=true}renderRound()});$$('[data-pref]').forEach(i=>i.onchange=()=>{const a=state.activities.find(x=>x.id===i.dataset.pref);a.preferred=i.value;state.meals[a.owner]=i.value;if(state.assignments[a.id])state.assignments[a.id].time=i.value;renderRound()});$$('[data-finish]').forEach(i=>i.onchange=()=>{state.activities.find(x=>x.id===i.dataset.finish).finish=i.value;renderRound()});$$('[data-free-meal]').forEach(i=>{if(!state.meals[i.dataset.freeMeal])state.meals[i.dataset.freeMeal]=i.value;i.onchange=()=>{state.meals[i.dataset.freeMeal]=i.value;renderRound()}});$$('[data-pick-cover]').forEach(b=>b.onclick=()=>{const a=state.activities.find(x=>x.id===b.dataset.pickCover),st=candidateStatus(b.dataset.name,a,a.preferred);if(st.level==="bad"){toast(st.reason);return}state.assignments[a.id]={coverer:b.dataset.name,time:a.preferred};state.meals[a.owner]=a.preferred;renderRound();toast("Cobertura confirmada")});$$('[data-change]').forEach(b=>b.onclick=()=>{delete state.assignments[b.dataset.change];renderRound()});$$('[data-start]').forEach(i=>i.onchange=()=>{state.activities.find(x=>x.id===i.dataset.start).start=i.value;renderRound()});$$('[data-future-owner]').forEach(s=>s.onchange=()=>{state.activities.find(x=>x.id===s.dataset.futureOwner).owner=s.value||null;renderRound()})}function validatePlan(){const issues=[];state.activities.filter(a=>a.needs===true&&!state.assignments[a.id]).forEach(a=>issues.push(`${a.owner} — ${a.machine}: falta escolher quem cobre.`));[...state.present].forEach(n=>{const m=state.meals[n];if(!m)issues.push(`${n}: janta não definida.`);else if(toMin(m)>1230)issues.push(`${n}: janta após 20:30.`);const ag=agenda(n);for(let i=0;i<ag.length;i++)for(let j=i+1;j<ag.length;j++)if(overlap(ag[i].s,ag[i].e,ag[j].s,ag[j].e))issues.push(`${n}: conflito entre ${ag[i].label} e ${ag[j].label}.`)});state.activities.filter(a=>a.type==="future"&&a.owner).forEach(a=>{const m=state.meals[a.owner];if(!m||toMin(m)+60>toMin(a.start))issues.push(`${a.owner}: não consegue jantar antes de iniciar ${a.machine}.`)});return [...new Set(issues)]}function renderFinal(){const issues=validatePlan();$("#validationBox").innerHTML=issues.length?`<div class="card decision"><h3 style="margin-top:0">⚠️ Ajustes necessários</h3>${issues.map(x=>`<div class="small" style="margin:7px 0">• ${x}</div>`).join("")}</div>`:`<div class="card"><h3 style="margin-top:0" class="good">✅ Plano sem conflitos</h3><div class="small">Todas as decisões da ronda foram validadas.</div></div>`;const people=[...state.present].filter(n=>agenda(n).length);$("#finalBox").innerHTML=people.map(n=>`<div class="card"><h3 style="margin-top:0">${n}</h3><div class="agenda">${agenda(n).map(x=>`<div class="event"><time>${toTime(x.s)}</time><div><strong>${x.label}</strong><small>${x.e<1320?`até ${toTime(x.e)}`:"até o fim do turno"}</small></div></div>`).join("")}</div></div>`).join("")||'<div class="card empty">Nenhuma decisão registrada.</div>'}function update(){$$('.step').forEach((x,i)=>x.classList.toggle('active',i===state.step));$$('.progress span').forEach((x,i)=>x.classList.toggle('on',i<=state.step));$("#back").style.visibility=state.step===0?"hidden":"visible";$("#next").textContent=state.step===3?"Revisar ronda":"Continuar";if(state.step===2)renderRound();if(state.step===3)renderFinal();window.scrollTo({top:0,behavior:"smooth"})}$("#addName").onclick=()=>{const n=$("#newName").value.trim();if(!n)return;if(!state.roster.some(x=>norm(x)===norm(n)))state.roster.push(n);state.present.add(n);$("#newName").value="";renderRoster()};$("#example").onclick=()=>{$("#report").value=`*SETUP:*\n🔴 TNL 029 - EWERSON\n🔴 TNL 073 - CLAYTON\n\n*PRÓXIMOS SETUPS:*\n🔴 TNL 130 - Setup 2°T (21:00)\n\n*MAQUINAS EM AJUSTES:*\nTNL 061 - EVERSON`;toast("Exemplo carregado")};$("#parse").onclick=()=>{if(parseReport()){state.step=2;update()}};$("#back").onclick=()=>{if(state.step>0){state.step--;update()}};$("#next").onclick=()=>{if(state.step===0&&state.present.size<2){toast("Selecione ao menos 2");return}if(state.step===1&&!parseReport())return;if(state.step===2){const p=state.activities.find(a=>a.type!=="future"&&a.needs===null);if(p){toast(`Complete ${p.owner}`);return}}if(state.step<3){state.step++;update()}else{state.step=2;update()}};renderRoster();update()})();
+(()=>{
+'use strict';
+
+const BASE=['Lucas V.','Lucas R.','Marlon','Ewerson','Everson','Clayton','Wendel','Gabriel','Adriano','Luciano','Juliano','Nattan','Marcio','Christoffer','Patrício','Mateus','Alan','Shaiane','Willians'];
+const state={step:0,roster:[...BASE],present:new Set(),activities:[],meals:{},assignments:{}};
+const $=s=>document.querySelector(s);
+const $$=s=>[...document.querySelectorAll(s)];
+const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+const uid=()=>Math.random().toString(36).slice(2);
+const toMin=t=>{const [h,m]=String(t||'00:00').split(':').map(Number);return h*60+m};
+const toTime=m=>`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+const overlap=(a,b,c,d)=>Math.max(a,c)<Math.min(b,d);
+
+function toast(msg){
+ const el=$('#toast'); if(!el)return;
+ el.textContent=msg; el.classList.add('show');
+ clearTimeout(window.__toast); window.__toast=setTimeout(()=>el.classList.remove('show'),1600);
+}
+
+function renderRoster(){
+ $('#roster').innerHTML=state.roster.map(n=>`<button type="button" class="chip ${state.present.has(n)?'sel':''}" data-person="${n}">${n}</button>`).join('');
+ $$('[data-person]').forEach(b=>b.addEventListener('click',()=>{
+   const n=b.dataset.person;
+   state.present.has(n)?state.present.delete(n):state.present.add(n);
+   renderRoster();
+ }));
+ $('#count').textContent=`${state.present.size} selecionados`;
+}
+
+function exactName(line){
+ const u=norm(line);
+ return [...state.present].sort((a,b)=>b.length-a.length).find(n=>u.includes(norm(n)))||null;
+}
+
+function parseReport(){
+ const raw=$('#report').value.trim();
+ if(!raw){toast('Cole o relatório');return false}
+ let section=''; const acts=[];
+ for(const line of raw.split(/\n/).map(x=>x.trim()).filter(Boolean)){
+   const u=norm(line).replace(/\*/g,'');
+   if(/^SETUP:?$/.test(u)){section='setup';continue}
+   if(u.includes('PROXIMOS SETUPS')){section='future';continue}
+   if(u.includes('SETUPS 3')||u.includes('MANUTENCAO')){section='ignore';continue}
+   if(u.includes('MAQUINAS EM AJUSTES')||u==='AJUSTES:'){section='adjust';continue}
+   if(line.includes('✅')||!['setup','future','adjust'].includes(section))continue;
+   const mm=line.match(/TNL\s*0*(\d{1,3})/i); if(!mm)continue;
+   const machine=`TNL ${String(mm[1]).padStart(3,'0')}`;
+   const time=(line.match(/\b(\d{1,2}:\d{2})\b/)||[])[1]||null;
+   if(section==='future'){
+     if(!acts.some(a=>a.type==='future'&&a.machine===machine))acts.push({id:uid(),type:'future',machine,start:time||'20:30',owner:null});
+     continue;
+   }
+   const owner=exactName(line); if(!owner)continue;
+   if(!acts.some(a=>a.type===section&&a.machine===machine))acts.push({id:uid(),type:section,machine,owner,needs:null,preferred:'20:30',finish:null});
+ }
+ state.activities=acts; state.meals={}; state.assignments={};
+ if(!acts.length){toast('Nenhuma atividade válida');return false}
+ renderRound(); return true;
+}
+
+function busyBase(name){
+ const events=[];
+ state.activities.forEach(a=>{
+   if(a.owner!==name||a.type==='future')return;
+   events.push({s:1080,e:a.finish?toMin(a.finish):1320,label:a.type==='adjust'?`Ajuste ${a.machine}`:a.machine,type:'busy'});
+ });
+ return events;
+}
+
+function agenda(name,ignoreId=null){
+ const events=[...busyBase(name)];
+ const meal=state.meals[name];
+ if(meal)events.push({s:toMin(meal),e:toMin(meal)+60,label:'Jantar',type:'meal'});
+ Object.entries(state.assignments).forEach(([id,x])=>{
+   if(id===ignoreId||x.coverer!==name)return;
+   const a=state.activities.find(z=>z.id===id); if(!a)return;
+   events.push({s:toMin(x.time),e:toMin(x.time)+60,label:`Cobre ${a.owner} na ${a.machine}`,type:'cover'});
+ });
+ state.activities.filter(a=>a.type==='future'&&a.owner===name).forEach(a=>events.push({s:toMin(a.start),e:1320,label:`Inicia ${a.machine}`,type:'future'}));
+ return events.sort((a,b)=>a.s-b.s);
+}
+
+function candidateStatus(name,a,time){
+ const s=toMin(time),e=s+60,ag=agenda(name,a.id);
+ if(name===a.owner)return{level:'bad',title:'Não funciona',reason:'É o próprio responsável.'};
+ if(s>1230)return{level:'bad',title:'Não funciona',reason:'O último início de jantar é 20:30.'};
+ if(ag.some(x=>overlap(x.s,x.e,s,e)))return{level:'bad',title:'Não funciona',reason:'Já existe compromisso nesse horário.'};
+ const meal=state.meals[name];
+ if(!meal)return{level:'warn',title:'Falta definir a janta',reason:'Defina primeiro a janta desse preparador.'};
+ if(toMin(meal)>1230)return{level:'bad',title:'Não funciona',reason:'A janta começaria depois de 20:30.'};
+ const future=state.activities.filter(f=>f.type==='future'&&f.owner===name).sort((x,y)=>toMin(x.start)-toMin(y.start))[0];
+ if(future&&e>toMin(future.start))return{level:'bad',title:'Não funciona',reason:`Conflita com ${future.machine} às ${future.start}.`};
+ const covers=ag.filter(x=>x.type==='cover').length;
+ return{level:'good',title:covers?'Boa escolha':'Melhor encaixe',reason:covers?'Encaixa na sequência já montada.':'Não cria conflito na agenda.'};
+}
+
+function miniTimeline(name,a,time){
+ const list=agenda(name,a.id).filter(x=>x.e>1080&&x.s<1320);
+ list.push({s:toMin(time),e:toMin(time)+60,label:`Cobre ${a.owner} na ${a.machine}`});
+ return list.sort((x,y)=>x.s-y.s).map(x=>`<div class="mini-event"><time>${toTime(x.s)}</time><span>${x.label}${x.e<1320?` — até ${toTime(x.e)}`:' — até o fim'}</span></div>`).join('');
+}
+
+function candidateList(a){
+ return [...state.present].filter(n=>n!==a.owner).map(n=>({n,st:candidateStatus(n,a,a.preferred)})).sort((x,y)=>({good:0,warn:1,bad:2}[x.st.level]-({good:0,warn:1,bad:2}[y.st.level])).slice(0,6).map(({n,st})=>`<button type="button" class="candidate" data-pick-cover="${a.id}" data-name="${n}"><div class="candidate-top"><strong>${n}</strong><span class="${st.level}">${st.title}</span></div><div class="small" style="margin-top:5px">${st.reason}</div>${st.level!=='bad'?`<div class="timeline-mini">${miniTimeline(n,a,a.preferred)}</div>`:''}</button>`).join('');
+}
+
+function coverBlock(a){
+ const x=state.assignments[a.id];
+ if(x)return`<div class="cover-panel"><div class="small">Quem vai cobrir?</div><div class="compact"><div class="compact-row"><div><strong>${x.coverer}</strong><div class="small">${x.time}–${toTime(toMin(x.time)+60)}</div></div><button type="button" class="btn secondary" data-change="${a.id}">Trocar</button></div><div class="timeline-mini">${miniTimeline(x.coverer,a,x.time)}</div></div></div>`;
+ return`<div class="cover-panel"><div class="small">Quem vai cobrir?</div><div class="candidate-list">${candidateList(a)||'<div class="small">Nenhum candidato disponível.</div>'}</div></div>`;
+}
+
+function setupCard(a){
+ return`<article class="card activity"><div class="activity-main"><div class="activity-top"><div><div class="machine">🔴 ${a.machine}</div><div class="owner">${a.owner}</div></div><span class="badge setup">SETUP</span></div><div class="choice"><button type="button" data-need="${a.id}" data-v="0" class="${a.needs===false?'on':''}">Não precisa</button><button type="button" data-need="${a.id}" data-v="1" class="${a.needs===true?'on':''}">Precisa revezar</button></div></div>${a.needs!==null?`<div class="detail"><div class="grid2">${a.needs===false?`<div class="field"><label>Termina o setup</label><input class="input" type="time" data-finish="${a.id}" value="${a.finish||'19:30'}"></div>`:''}<div class="field"><label>Horário da janta</label><input class="input" type="time" min="18:00" max="20:30" step="1800" data-pref="${a.id}" value="${a.preferred}"></div></div>${a.needs===true?coverBlock(a):''}</div>`:''}</article>`;
+}
+
+function adjustCard(a){
+ return`<article class="card activity"><div class="activity-main"><div class="activity-top"><div><div class="machine">🟡 ${a.machine}</div><div class="owner">${a.owner}</div></div><span class="badge adjust">AJUSTE</span></div><div class="choice"><button type="button" data-adjust="${a.id}" data-v="finish" class="${a.finish?'on':''}">Termina</button><button type="button" data-adjust="${a.id}" data-v="cover" class="${a.needs===true?'on':''}">Precisa revezar</button></div></div>${a.finish||a.needs===true?`<div class="detail"><div class="grid2">${a.finish?`<div class="field"><label>Termina às</label><input class="input" type="time" data-finish="${a.id}" value="${a.finish}"></div>`:''}<div class="field"><label>Horário da janta</label><input class="input" type="time" min="18:00" max="20:30" step="1800" data-pref="${a.id}" value="${a.preferred}"></div></div>${a.needs===true?coverBlock(a):''}</div>`:''}</article>`;
+}
+
+function futureCard(a){
+ return`<div class="card"><div class="activity-top"><div><div class="machine">🔴 ${a.machine}</div><div class="owner">Próximo setup</div></div><span class="badge future">FUTURO</span></div><div class="grid2" style="margin-top:12px"><div class="field"><label>Início</label><input class="input" type="time" data-start="${a.id}" value="${a.start}"></div><div class="field"><label>Responsável</label><select class="select" data-future-owner="${a.id}"><option value="">Decidir depois</option>${[...state.present].map(n=>`<option value="${n}" ${a.owner===n?'selected':''}>${n}</option>`).join('')}</select></div></div></div>`;
+}
+
+function renderFreeMeals(){
+ const busy=new Set(state.activities.filter(a=>a.type!=='future').map(a=>a.owner));
+ const free=[...state.present].filter(n=>!busy.has(n));
+ $('#freeMeals').innerHTML=free.length?free.map(n=>`<div class="field" style="margin-bottom:9px"><label>${n}</label><input class="input" type="time" min="18:00" max="20:30" step="1800" data-free-meal="${n}" value="${state.meals[n]||'18:00'}"></div>`).join(''):'<div class="small">Nenhum preparador totalmente livre.</div>';
+}
+
+function renderRound(){
+ renderFreeMeals();
+ $('#setupActivities').innerHTML=state.activities.filter(a=>a.type==='setup').map(setupCard).join('')||'<div class="card empty">Nenhum setup atual.</div>';
+ $('#adjustActivities').innerHTML=state.activities.filter(a=>a.type==='adjust').map(adjustCard).join('')||'<div class="card empty">Nenhum ajuste.</div>';
+ $('#futureActivities').innerHTML=state.activities.filter(a=>a.type==='future').map(futureCard).join('')||'<div class="card empty">Nenhum próximo setup.</div>';
+ bindRound();
+}
+
+function bindRound(){
+ $$('[data-need]').forEach(b=>b.addEventListener('click',()=>{const a=state.activities.find(x=>x.id===b.dataset.need);a.needs=b.dataset.v==='1';if(!a.needs)delete state.assignments[a.id];renderRound()}));
+ $$('[data-adjust]').forEach(b=>b.addEventListener('click',()=>{const a=state.activities.find(x=>x.id===b.dataset.adjust);if(b.dataset.v==='finish'){a.finish=a.finish||'19:30';a.needs=false;delete state.assignments[a.id]}else{a.finish=null;a.needs=true}renderRound()}));
+ $$('[data-pref]').forEach(i=>i.addEventListener('change',()=>{const a=state.activities.find(x=>x.id===i.dataset.pref);a.preferred=i.value;state.meals[a.owner]=i.value;if(state.assignments[a.id])state.assignments[a.id].time=i.value;renderRound()}));
+ $$('[data-finish]').forEach(i=>i.addEventListener('change',()=>{state.activities.find(x=>x.id===i.dataset.finish).finish=i.value;renderRound()}));
+ $$('[data-free-meal]').forEach(i=>{if(!state.meals[i.dataset.freeMeal])state.meals[i.dataset.freeMeal]=i.value;i.addEventListener('change',()=>{state.meals[i.dataset.freeMeal]=i.value;renderRound()})});
+ $$('[data-pick-cover]').forEach(b=>b.addEventListener('click',()=>{const a=state.activities.find(x=>x.id===b.dataset.pickCover),st=candidateStatus(b.dataset.name,a,a.preferred);if(st.level==='bad'){toast(st.reason);return}if(st.level==='warn'){toast(st.reason);return}state.assignments[a.id]={coverer:b.dataset.name,time:a.preferred};state.meals[a.owner]=a.preferred;renderRound();toast('Cobertura confirmada')}));
+ $$('[data-change]').forEach(b=>b.addEventListener('click',()=>{delete state.assignments[b.dataset.change];renderRound()}));
+ $$('[data-start]').forEach(i=>i.addEventListener('change',()=>{state.activities.find(x=>x.id===i.dataset.start).start=i.value;renderRound()}));
+ $$('[data-future-owner]').forEach(s=>s.addEventListener('change',()=>{state.activities.find(x=>x.id===s.dataset.futureOwner).owner=s.value||null;renderRound()}));
+}
+
+function validatePlan(){
+ const issues=[];
+ state.activities.filter(a=>a.needs===true&&!state.assignments[a.id]).forEach(a=>issues.push(`${a.owner} — ${a.machine}: falta escolher quem cobre.`));
+ [...state.present].forEach(n=>{
+   const m=state.meals[n];
+   if(!m)issues.push(`${n}: janta não definida.`);
+   else if(toMin(m)>1230)issues.push(`${n}: janta após 20:30.`);
+   const ag=agenda(n);
+   for(let i=0;i<ag.length;i++)for(let j=i+1;j<ag.length;j++)if(overlap(ag[i].s,ag[i].e,ag[j].s,ag[j].e))issues.push(`${n}: conflito entre ${ag[i].label} e ${ag[j].label}.`);
+ });
+ state.activities.filter(a=>a.type==='future'&&a.owner).forEach(a=>{const m=state.meals[a.owner];if(!m||toMin(m)+60>toMin(a.start))issues.push(`${a.owner}: não consegue jantar antes de iniciar ${a.machine}.`)});
+ return [...new Set(issues)];
+}
+
+function renderFinal(){
+ const issues=validatePlan();
+ $('#validationBox').innerHTML=issues.length?`<div class="card decision"><h3 style="margin-top:0">⚠️ Ajustes necessários</h3>${issues.map(x=>`<div class="small" style="margin:7px 0">• ${x}</div>`).join('')}</div>`:'<div class="card"><h3 style="margin-top:0" class="good">✅ Plano sem conflitos</h3><div class="small">Todas as decisões da ronda foram validadas.</div></div>';
+ const people=[...state.present].filter(n=>agenda(n).length);
+ $('#finalBox').innerHTML=people.map(n=>`<div class="card"><h3 style="margin-top:0">${n}</h3><div class="agenda">${agenda(n).map(x=>`<div class="event"><time>${toTime(x.s)}</time><div><strong>${x.label}</strong><small>${x.e<1320?`até ${toTime(x.e)}`:'até o fim do turno'}</small></div></div>`).join('')}</div></div>`).join('')||'<div class="card empty">Nenhuma decisão registrada.</div>';
+}
+
+function update(){
+ $$('.step').forEach((x,i)=>x.classList.toggle('active',i===state.step));
+ $$('.progress span').forEach((x,i)=>x.classList.toggle('on',i<=state.step));
+ $('#back').style.visibility=state.step===0?'hidden':'visible';
+ $('#next').textContent=state.step===3?'Revisar ronda':'Continuar';
+ if(state.step===2)renderRound();
+ if(state.step===3)renderFinal();
+ window.scrollTo({top:0,behavior:'smooth'});
+}
+
+$('#addName').addEventListener('click',()=>{
+ const input=$('#newName'),name=input.value.trim();
+ if(!name){toast('Digite o nome');return}
+ let existing=state.roster.find(x=>norm(x)===norm(name));
+ if(!existing){state.roster.push(name);existing=name}
+ state.present.add(existing);input.value='';renderRoster();toast('Preparador adicionado');
+});
+$('#newName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#addName').click()}});
+$('#example').addEventListener('click',()=>{$('#report').value='*SETUP:*\n🔴 TNL 029 - EWERSON\n🔴 TNL 073 - CLAYTON\n\n*PRÓXIMOS SETUPS:*\n🔴 TNL 005 - Setup 2°T (20:30)\n\n*MAQUINAS EM AJUSTES:*\nTNL 061 - EVERSON';toast('Exemplo carregado')});
+$('#parse').addEventListener('click',()=>{if(parseReport()){state.step=2;update()}});
+$('#back').addEventListener('click',()=>{if(state.step>0){state.step--;update()}});
+$('#next').addEventListener('click',()=>{
+ if(state.step===0&&state.present.size<2){toast('Selecione ao menos 2 preparadores');return}
+ if(state.step===1){if(!parseReport())return;state.step=2;update();return}
+ if(state.step<3){state.step++;update();return}
+ state.step=2;update();
+});
+
+renderRoster();update();
+})();
