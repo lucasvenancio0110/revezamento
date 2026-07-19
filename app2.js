@@ -40,7 +40,6 @@ function assignMeals(plan){
     return bd-ad || personBase(b).freeAt-personBase(a).freeAt;
   });
   for(const name of people){
-    if(state.ate[name]===true) continue;
     const ownedCover=state.activities.find(a=>a.type!=='future'&&a.owner===name&&a.need===true);
     const preferred=ownedCover?.preferred || state.meals[name] || '20:30';
     let opts;
@@ -74,7 +73,7 @@ function optimizePlan(){
         if(base.blocked || base.freeAt>task.start) continue;
         const ev=plan.calendars[name];
         if(hasConflict(ev,task.start,task.end)) continue;
-        if(task.kind==='future' && state.ate[name]!==true){
+        if(task.kind==='future'){
           const fixedMeal=state.meals[name];
           const canEat=fixedMeal
             ? (toMin(fixedMeal)>=base.freeAt && toMin(fixedMeal)+60<=task.start && !hasConflict(ev,toMin(fixedMeal),toMin(fixedMeal)+60))
