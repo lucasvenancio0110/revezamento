@@ -37,7 +37,6 @@ $('#parse').onclick = () => {
   state.activities = parsed.activities;
   state.completedPeople = parsed.completedPeople;
   state.meals = {};
-  state.ate = {};
   state.covers = {}; state.bestPlan=null; state.planApplied=false;
   state.step = 2;
   update();
@@ -52,7 +51,6 @@ $('#next').onclick = () => {
     state.activities = parsed.activities;
     state.completedPeople = parsed.completedPeople;
     state.meals = {};
-    state.ate = {};
     state.covers = {}; state.bestPlan=null; state.planApplied=false;
     state.step = 2;
     update();
