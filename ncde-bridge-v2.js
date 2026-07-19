@@ -35,10 +35,12 @@ function parseFinal(){
       continue;
     }
     if(section!=='rev'||!person)continue;
-    const time=(line.match(/^(\d{1,2}:\d{2})/)||[])[1];if(!time)continue;
-    if(/JANTAR/i.test(line)){meals.push({person,start:time});continue}
-    const c=line.match(/REVEZAR\s+(.+?)\s+[—-]\s+(TNL\s*\d+)/i);
-    if(c)covers.push({person,owner:window.NCDE.canon(c[1]),machine:c[2].replace(/\s+/g,' '),start:time});
+    const time=(line.match(/^(\d{1,2}:\d{2})/)||[])[1];
+    if(time&&/JANTAR/i.test(line)){meals.push({person,start:time});continue}
+    let c=line.match(/^(\d{1,2}:\d{2})\s*-?\s*REVEZAR\s+(.+?)\s+[—-]\s+(TNL\s*\d+)/i);
+    if(c){covers.push({person,owner:window.NCDE.canon(c[2]),machine:c[3].replace(/\s+/g,' '),start:c[1]});continue}
+    c=line.match(/^(.+?)\s+REVEZA\s+(\d{1,2}:\d{2})\s+[—-]\s+(TNL\s*\d+)/i);
+    if(c){covers.push({person:window.NCDE.canon(c[1]),owner:person,machine:c[3].replace(/\s+/g,' '),start:c[2]});continue}
   }
   return {meals,covers,futureOwners};
 }
@@ -53,12 +55,13 @@ function ensurePanel(){
 }
 function renderValidation(){
   if(!window.NCDE)return;const panel=ensurePanel();if(!panel)return;
-  const result=window.NCDE.optimize(buildPlan(),{limit:5000}),m=result.metrics;
-  panel.className=`strategy ${m.valid?'':'danger'}`;
-  panel.innerHTML=`<div class="kicker">NCDE ${window.NCDE.version}</div><h3>${m.valid?'PLANO VALIDADO':'PLANO NÃO VALIDADO'}</h3><p>${result.explanation}</p><div class="factory-grid"><div><span>NOTA</span><strong>${m.score}/100</strong></div><div><span>CENÁRIOS</span><strong>${result.explored}</strong></div><div><span>SETUPS</span><strong>${m.coverage}%</strong></div><div><span>JANTARES</span><strong>${m.dinners}%</strong></div></div>${m.errors.length?`<div style="margin-top:12px">${m.errors.slice(0,5).map(e=>`<div>⚠ ${e.message}</div>`).join('')}</div>`:''}`;
-  const copy=$('#copyWA');if(copy){copy.disabled=!m.valid;copy.title=m.valid?'':'Resolva os conflitos antes de copiar';}
-  const wa=$('#waText');if(wa)wa.dataset.ncdeValid=m.valid?'1':'0';
-  window.__NCDE_LAST__=result;
+  const plan=buildPlan(),actual=window.NCDE.score(plan),simulation=window.NCDE.optimize(plan,{limit:5000});
+  const canBeSolved=!actual.valid&&simulation.metrics.valid;
+  panel.className=`strategy ${actual.valid?'':'danger'}`;
+  panel.innerHTML=`<div class="kicker">NCDE ${window.NCDE.version}</div><h3>${actual.valid?'PLANO VALIDADO':'PLANO NÃO VALIDADO'}</h3><p>${actual.valid?`Plano real confirmado: ${actual.coverage}% dos próximos setups cobertos e ${actual.dinners}% dos jantares definidos.`:canBeSolved?'O relatório atual ainda possui conflito, mas o motor encontrou uma combinação possível. Ela precisa ser confirmada na ronda antes de copiar.':simulation.explanation}</p><div class="factory-grid"><div><span>NOTA REAL</span><strong>${actual.score}/100</strong></div><div><span>CENÁRIOS</span><strong>${simulation.explored}</strong></div><div><span>SETUPS</span><strong>${actual.coverage}%</strong></div><div><span>JANTARES</span><strong>${actual.dinners}%</strong></div></div>${actual.errors.length?`<div style="margin-top:12px">${actual.errors.slice(0,5).map(e=>`<div>⚠ ${e.message}</div>`).join('')}</div>`:''}${canBeSolved?`<div style="margin-top:12px"><strong>Sugestão encontrada:</strong>${simulation.plan.tasks.filter(t=>t.type==='future'&&t.assignee).map(t=>`<div>💡 ${t.start} — ${t.machine} → ${t.assignee}</div>`).join('')}</div>`:''}`;
+  const copy=$('#copyWA');if(copy){copy.disabled=!actual.valid;copy.title=actual.valid?'':'Resolva e confirme os conflitos antes de copiar';}
+  const wa=$('#waText');if(wa)wa.dataset.ncdeValid=actual.valid?'1':'0';
+  window.__NCDE_LAST__={actual,simulation,plan};
 }
 const observer=new MutationObserver(()=>{if($('#waText'))renderValidation()});observer.observe(document.body,{childList:true,subtree:true});
 document.addEventListener('input',e=>{if(e.target?.id==='waText')renderValidation()});
