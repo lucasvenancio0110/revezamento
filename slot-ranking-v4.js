@@ -3,11 +3,10 @@ const SLOTS=['18:00','18:30','19:00','19:30','20:00','20:30'];
 const $=s=>document.querySelector(s);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function text(el){return (el?.textContent||'').replace(/\s+/g,' ').trim()}
+function injectStyle(){if($('#slotRankingStyle'))return;const s=document.createElement('style');s.id='slotRankingStyle';s.textContent=`.slot-ranking{margin-top:18px}.slot-ranking>h3{margin:6px 0 6px;font-size:24px}.slot-ranking>p{margin:0 0 14px;color:#9eb1c8;line-height:1.45}.slot-list{display:grid;gap:12px}.slot-card{border:1px solid #284966;border-radius:18px;padding:16px;background:#0b1d31}.slot-card.best{border-color:#44d0a7;background:linear-gradient(145deg,#10374a,#123143)}.slot-card.good{border-color:#4d8fcb}.slot-card.warn{border-color:#8b713e}.slot-card.danger{border-color:#7d3942;opacity:.82}.slot-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.slot-top span{display:block;color:#8fc9ff;font-size:11px;font-weight:900;letter-spacing:.08em}.slot-top strong{display:block;margin-top:4px;font-size:28px}.slot-top b{font-size:14px;color:#d9e9f8}.slot-card h4{margin:12px 0 8px;font-size:18px}.slot-card ul{margin:0 0 14px;padding-left:20px;color:#bdd0df}.slot-card li+li{margin-top:5px}.manual-slot{margin-top:14px;border:1px solid #294862;border-radius:14px;padding:12px}.manual-slot summary{font-weight:850;cursor:pointer}.manual-slot .field{display:block!important;margin-top:12px}`;document.head.appendChild(s)}
 function parseCurrentRecommendation(){
-  const rec=$('#rec');
-  if(!rec)return null;
-  const strategy=rec.querySelector('.strategy');
-  if(!strategy)return null;
+  const rec=$('#rec');if(!rec)return null;
+  const strategy=rec.querySelector('.strategy');if(!strategy)return null;
   const danger=strategy.classList.contains('danger');
   const title=text(strategy.querySelector('h3'));
   const chain=[...strategy.querySelectorAll('.chain > div')].map(text).filter(Boolean);
@@ -26,26 +25,19 @@ function quality(item,index){
   return {label:'MENOR APROVEITAMENTO',score:Math.min(79,score),tone:'warn'};
 }
 async function evaluateSlots(input){
-  const original=input.value;
-  const rows=[];
+  const original=input.value,rows=[];
   for(const slot of SLOTS){
-    input.value=slot;
-    input.dispatchEvent(new Event('change',{bubbles:true}));
-    await sleep(0);
-    const info=parseCurrentRecommendation()||{possible:false,reason:'Sem recomendação para este horário.'};
-    rows.push({...info,slot});
+    input.value=slot;input.dispatchEvent(new Event('change',{bubbles:true}));await sleep(0);
+    const info=parseCurrentRecommendation()||{possible:false,reason:'Sem recomendação para este horário.'};rows.push({...info,slot});
   }
-  input.value=original;
-  input.dispatchEvent(new Event('change',{bubbles:true}));
-  await sleep(0);
+  input.value=original;input.dispatchEvent(new Event('change',{bubbles:true}));await sleep(0);
   const possible=rows.filter(x=>x.possible).sort((a,b)=>b.preserved-a.preserved||SLOTS.indexOf(a.slot)-SLOTS.indexOf(b.slot));
   const impossible=rows.filter(x=>!x.possible);
   return [...possible,...impossible].map((x,i)=>({...x,quality:quality(x,i)}));
 }
 function benefits(item){
   if(!item.possible)return [item.reason||'Nenhum preparador disponível sem conflito.'];
-  const out=[];
-  out.push(`${item.who} assume o revezamento.`);
+  const out=[`${item.who} assume o revezamento.`];
   if(item.marginText)out.push(item.marginText.replace(/^./,c=>c.toUpperCase())+'.');
   out.push(`${item.preserved} próximo(s) setup(s) preservado(s).`);
   out.push(item.preserved>=3?'Mantém boa reserva operacional.':item.preserved>=1?'Mantém parte da flexibilidade do turno.':'Consome mais capacidade para os próximos setups.');
@@ -53,32 +45,29 @@ function benefits(item){
 }
 function renderRanking(rows,input){
   const decision=$('#decision');if(!decision)return;
-  decision.innerHTML=`<div class="slot-ranking"><div class="kicker">MELHOR HORÁRIO PARA JANTAR</div><h3>Ranking de aproveitamento</h3><p>O sistema comparou todas as janelas e ordenou pelo impacto no restante do turno.</p><div class="slot-list">${rows.map((r,i)=>`<article class="slot-card ${r.quality.tone}"><div class="slot-top"><div><span>${i+1}º • ${r.quality.label}</span><strong>${r.slot}</strong></div><b>${r.quality.score}/100</b></div><h4>${r.possible?`${r.who} cobre`:'Sem encaixe seguro'}</h4><ul>${benefits(r).map(x=>`<li>${x}</li>`).join('')}</ul>${r.possible?`<button class="btn ${i===0?'primary':'secondary'} full" data-pick-slot="${r.slot}" data-pick-who="${r.who}">Escolher este plano</button>`:'<button class="btn secondary full" disabled>Horário indisponível</button>'}</article>`).join('')}</div><details class="manual-slot"><summary>Escolher outro horário manualmente</summary><div class="field"><label>Horário</label><input id="manualCoverTime" class="input" type="time" value="${input.value}"></div><button id="applyManualSlot" class="btn secondary full">Analisar horário manual</button></details></div>`;
-  document.querySelectorAll('[data-pick-slot]').forEach(btn=>btn.onclick=async()=>{
-    input.value=btn.dataset.pickSlot;
-    input.dispatchEvent(new Event('change',{bubbles:true}));
-    await sleep(0);
+  const old=$('#slotRanking');if(old)old.remove();
+  const box=document.createElement('div');box.id='slotRanking';box.className='slot-ranking';
+  box.innerHTML=`<div class="kicker">MELHOR HORÁRIO PARA JANTAR</div><h3>Ranking de aproveitamento</h3><p>O sistema comparou todas as janelas e ordenou pelo impacto no restante do turno.</p><div class="slot-list">${rows.map((r,i)=>`<article class="slot-card ${r.quality.tone}"><div class="slot-top"><div><span>${i+1}º • ${r.quality.label}</span><strong>${r.slot}</strong></div><b>${r.quality.score}/100</b></div><h4>${r.possible?`${r.who} cobre`:'Sem encaixe seguro'}</h4><ul>${benefits(r).map(x=>`<li>${x}</li>`).join('')}</ul>${r.possible?`<button class="btn ${i===0?'primary':'secondary'} full" data-pick-slot="${r.slot}" data-pick-who="${r.who}">Escolher este plano</button>`:'<button class="btn secondary full" disabled>Horário indisponível</button>'}</article>`).join('')}</div><details class="manual-slot"><summary>Escolher outro horário manualmente</summary><div class="field"><label>Horário</label><input id="manualCoverTime" class="input" type="time" value="${input.value}"></div><button id="applyManualSlot" class="btn secondary full">Analisar horário manual</button></details>`;
+  decision.prepend(box);
+  box.querySelectorAll('[data-pick-slot]').forEach(btn=>btn.onclick=async()=>{
+    input.value=btn.dataset.pickSlot;input.dispatchEvent(new Event('change',{bubbles:true}));await sleep(0);
     const target=[...document.querySelectorAll('#rec [data-confirm-cover]')].find(x=>x.dataset.confirmCover===btn.dataset.pickWho)||$('#rec [data-confirm-cover]');
     if(target)target.click();
   });
-  const manual=$('#applyManualSlot');if(manual)manual.onclick=async()=>{
-    input.value=$('#manualCoverTime').value;
-    input.dispatchEvent(new Event('change',{bubbles:true}));
-    await sleep(0);
+  const manual=box.querySelector('#applyManualSlot');if(manual)manual.onclick=async()=>{
+    input.value=box.querySelector('#manualCoverTime').value;input.dispatchEvent(new Event('change',{bubbles:true}));await sleep(0);
     const info=parseCurrentRecommendation();
     if(!info?.possible){alert(info?.reason||'Não existe encaixe seguro nesse horário.');return}
-    const target=[...document.querySelectorAll('#rec [data-confirm-cover]')].find(x=>x.dataset.confirmCover===info.who)||$('#rec [data-confirm-cover]');
-    if(target)target.click();
+    const target=[...document.querySelectorAll('#rec [data-confirm-cover]')].find(x=>x.dataset.confirmCover===info.who)||$('#rec [data-confirm-cover]');if(target)target.click();
   };
 }
 async function enhance(){
-  const input=$('#coverTime');
-  if(!input||input.dataset.ranked==='1')return;
+  injectStyle();
+  const input=$('#coverTime');if(!input||input.dataset.ranked==='1')return;
   input.dataset.ranked='1';
   const field=input.closest('.field');if(field)field.style.display='none';
   const rec=$('#rec');if(rec)rec.style.display='none';
-  const rows=await evaluateSlots(input);
-  renderRanking(rows,input);
+  const rows=await evaluateSlots(input);renderRanking(rows,input);
 }
 new MutationObserver(()=>enhance()).observe(document.body,{childList:true,subtree:true});
 enhance();
