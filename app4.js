@@ -27,13 +27,6 @@ function applyBestPlan(plan){
 }
 
 function renderRound(){
-  const mealPending=pendingMealStatus();
-  if(mealPending){
-    const answered=Object.keys(state.ate).filter(n=>state.present.has(n)).length;
-    $('#freeMeals').parentElement.style.display='none';
-    $('#priorities').innerHTML=`<div class="card guide"><div class="guidehead"><div class="stepnum">${answered+1}</div><div><h3>Primeiro, situação da janta</h3><p>Isso permite ao motor usar corretamente quem pode pegar os setups mais urgentes.</p></div></div><div class="progress-text">${answered} de ${state.present.size} preparadores confirmados.</div></div>`;
-    $('#activities').innerHTML=mealStatusCard(mealPending); $('#future').innerHTML=''; bindRound(); return;
-  }
   const ordered=collectionOrder();
   const pending=ordered.find(a=>a.need===null || (a.need===false&&!a.finish));
   const total=state.activities.filter(a=>a.type!=='future').length;
@@ -52,7 +45,6 @@ function renderRound(){
 }
 
 function bindRound(){
-  $$('[data-ate]').forEach(btn=>btn.onclick=()=>{state.ate[btn.dataset.ate]=btn.dataset.value==='1';state.planApplied=false;renderRound();});
   $$('[data-need]').forEach(btn=>btn.onclick=()=>{
     const a=state.activities.find(x=>x.id===btn.dataset.need);a.need=btn.dataset.value==='1';
     if(a.need){a.finish=null;} state.planApplied=false;renderRound();
