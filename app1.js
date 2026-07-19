@@ -3,7 +3,7 @@
 const BASE = ['Lucas','Marlon','Marcio','Clayton','Juliano','Luciano','Nattan','Alan','Wendel','Ewerson','Christoffer'];
 const MEAL_SLOTS = ['18:00','18:30','19:00','19:30','20:00','20:30'];
 const SHIFT_END = 24*60;
-const state = {step:0, roster:[...BASE], present:new Set(), activities:[], completedPeople:new Set(), meals:{}, ate:{}, covers:{}, bestPlan:null, planApplied:false};
+const state = {step:0, roster:[...BASE], present:new Set(), activities:[], completedPeople:new Set(), meals:{}, covers:{}, bestPlan:null, planApplied:false};
 
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
