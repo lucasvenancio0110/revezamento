@@ -1,12 +1,3 @@
-function pendingMealStatus(){
-  return Array.from(state.present).find(name => state.ate[name] === undefined) || null;
-}
-
-function mealStatusCard(name){
-  const base=personBase(name);
-  return `<article class="card guide"><div class="guidehead"><div class="stepnum">🍽️</div><div><h3>${name} já jantou?</h3><p>${base.reason}. Essa resposta muda quem pode assumir os setups mais cedo.</p></div></div><div class="choice" style="margin-top:14px"><button type="button" data-ate="${name}" data-value="1">Já jantou</button><button type="button" data-ate="${name}" data-value="0">Ainda não</button></div></article>`;
-}
-
 function collectionOrder(){
   const current=state.activities.filter(a=>a.type!=='future');
   const countByOwner={}; current.forEach(a=>countByOwner[a.owner]=(countByOwner[a.owner]||0)+1);
@@ -29,9 +20,8 @@ function collectionCard(a){
 
 function planEvents(plan){
   const rows=[];
-  Object.entries(state.ate).forEach(([name,ate])=>{if(ate===true)rows.push({s:1079,text:`${name} → já havia jantado`});});
   Object.entries(plan.meals||{}).forEach(([name,slot])=>rows.push({s:toMin(slot),text:`${name} → jantar até ${toTime(toMin(slot)+60)}`}));
   const tasks=taskList();
-  tasks.forEach(t=>{const who=plan.assignments[t.id];if(who)rows.push({s:t.start,text:`${who} → ${t.label}`});});
+  tasks.forEach(t=>{const who=plan.assignments[t.id];if(who)rows.push({s:t.start,text:`${who} → ${t.label}`} );});
   return rows.sort((a,b)=>a.s-b.s);
 }
