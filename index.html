@@ -6,42 +6,479 @@
 <meta name="theme-color" content="#07101c">
 <title>Planejador de Revezamento</title>
 <style>
-:root{--bg:#07101c;--p:#172b47;--p2:#0a1727;--line:#2b4566;--txt:#f7f9fc;--mut:#9fb0c7;--blue:#4da8ff;--green:#90efc8;--yellow:#ffe38a;--red:#ff9aa2}*{box-sizing:border-box}body{margin:0;background:#07101c;color:var(--txt);font:15px system-ui,-apple-system,sans-serif}.app{max-width:900px;margin:auto;padding:14px 14px 120px}.top{position:sticky;top:0;z-index:10;background:#07101cf5;padding:10px 0 14px}.brand{display:flex;gap:12px;align-items:center}.logo{width:48px;height:48px;border-radius:15px;background:var(--blue);color:#07101c;display:grid;place-items:center;font-size:24px;font-weight:900}h1{font-size:18px;margin:0}.sub,.small{color:var(--mut);font-size:12px}.progress{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:14px}.progress span{height:5px;border-radius:10px;background:#21334c}.progress .on{background:var(--blue)}.step{display:none}.step.active{display:block}.head{margin:22px 4px 16px}.ey{font-size:12px;font-weight:900;color:var(--blue)}h2{font-size:28px;margin:7px 0}.head p{margin:0;color:var(--mut)}.card{background:linear-gradient(#172b47,#12243b);border:1px solid var(--line);border-radius:20px;padding:16px;margin-bottom:13px}.roster,.grid2,.choice,.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}.chip,.btn,.choice button,.candidate{border:1px solid var(--line);border-radius:14px;min-height:48px;font:inherit;font-weight:800;color:#fff;background:var(--p2)}.chip.sel,.choice button.on{border-color:var(--blue);background:#4da8ff2b}.input,.select,textarea{width:100%;min-width:0;border:1px solid var(--line);border-radius:14px;background:#091625;color:#fff;padding:13px;font:inherit}.primary{background:linear-gradient(#50aaff,#277ad1);border:0}.secondary{background:#1a2d48}.activity{padding:0;overflow:hidden}.main{padding:16px}.toprow,.candtop{display:flex;justify-content:space-between;gap:10px}.machine{font-size:21px;font-weight:900}.owner{color:var(--mut);font-size:13px}.badge{font-size:11px;font-weight:900;border-radius:999px;padding:7px 10px;background:#4da8ff21;color:#b9d9ff}.detail{padding:14px;border-top:1px solid var(--line);background:#040c163f}.field{display:grid;gap:5px}.field label{font-size:12px;color:var(--mut)}.candidate{width:100%;text-align:left;padding:12px;margin-top:8px}.good{color:var(--green)}.warn{color:var(--yellow)}.bad{color:var(--red)}.timeline{display:grid;gap:7px;margin-top:9px}.event{display:grid;grid-template-columns:60px minmax(0,1fr);gap:9px;padding:9px;border-radius:11px;background:#0d1d30}.event time{font-weight:900;color:#9bd1ff}.sticky{position:fixed;left:0;right:0;bottom:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,#07101c 30%);z-index:20}.stickin{max-width:900px;margin:auto;display:grid;grid-template-columns:.7fr 1.3fr;gap:8px}.toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);background:#fff;color:#07101c;padding:10px 14px;border-radius:12px;font-weight:900;display:none;z-index:30}.toast.show{display:block}.done{border:1px solid #4ed5a08c;padding:8px;border-radius:12px;background:#4ed5a014}.empty{text-align:center;color:var(--mut);padding:20px}.prio{border-color:#4da8ff}
-</style></head><body><div class="app"><header class="top"><div class="brand"><div class="logo">↔</div><div><h1>Planejador de Revezamento</h1><div class="sub">Decide durante a ronda e valida no final.</div></div></div><div class="progress"><span></span><span></span><span></span><span></span></div></header>
-<section class="step"><div class="head"><div class="ey">ETAPA 1 DE 4</div><h2>Quem está no turno?</h2><p>Selecione os preparadores presentes.</p></div><div class="card"><h3>Preparadores <span id="count" class="small"></span></h3><div id="roster" class="roster"></div><div class="row" style="margin-top:10px"><input id="newName" class="input" placeholder="Adicionar nome"><button id="addName" class="btn secondary">Adicionar</button></div></div></section>
-<section class="step"><div class="head"><div class="ey">ETAPA 2 DE 4</div><h2>Carregar situação</h2><p>Cole o relatório do turno.</p></div><div class="card"><textarea id="report" rows="14"></textarea><div class="row" style="margin-top:10px"><button id="example" class="btn secondary">Exemplo</button><button id="parse" class="btn primary">Carregar</button></div></div></section>
-<section class="step"><div class="head"><div class="ey">ETAPA 3 DE 4</div><h2>Ronda assistida</h2><p>Decida quem cobre em cada máquina.</p></div><div id="priorities"></div><div class="card"><h3>Preparadores livres</h3><div id="freeMeals"></div></div><div id="activities"></div><div id="future"></div></section>
-<section class="step"><div class="head"><div class="ey">ETAPA 4 DE 4</div><h2>Plano validado</h2><p>Resumo das decisões.</p></div><div id="final"></div></section></div>
-<div class="sticky"><div class="stickin"><button id="back" class="btn secondary">Voltar</button><button id="next" class="btn primary">Continuar</button></div></div><div id="toast" class="toast"></div>
+:root{--bg:#07101c;--panel:#172b47;--panel2:#0a1727;--line:#2b4566;--text:#f7f9fc;--muted:#9fb0c7;--blue:#4da8ff;--green:#4ed5a0;--yellow:#ffd06a;--red:#ff6976}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(#07101c,#091523);color:var(--text);font:15px system-ui,-apple-system,"Segoe UI",sans-serif}
+.app{max-width:900px;margin:auto;padding:14px 14px 122px}
+.top{position:sticky;top:0;z-index:20;background:rgba(7,16,28,.97);padding:10px 0 14px}
+.brand{display:flex;align-items:center;gap:12px}.logo{width:48px;height:48px;border-radius:15px;background:var(--blue);color:#07101c;display:grid;place-items:center;font-size:24px;font-weight:900}
+h1{font-size:18px;margin:0}.sub,.small{color:var(--muted);font-size:12px}
+.progress{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:14px}.progress span{height:5px;border-radius:10px;background:#21334c}.progress .on{background:var(--blue)}
+.step{display:none}.step.active{display:block}.head{margin:22px 4px 16px}.ey{font-size:12px;font-weight:900;color:var(--blue)}h2{font-size:28px;line-height:1.05;margin:7px 0}.head p{margin:0;color:var(--muted)}
+.card{background:linear-gradient(180deg,#172b47,#12243b);border:1px solid var(--line);border-radius:20px;padding:16px;margin-bottom:13px}
+.roster,.grid2,.choice,.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+.chip,.btn,.choice button,.candidate{border:1px solid var(--line);border-radius:14px;min-height:48px;font:inherit;font-weight:800;color:#fff;background:var(--panel2)}
+.chip.sel,.choice button.on,.candidate.selected{border-color:var(--blue);background:rgba(77,168,255,.17)}
+.input,.select,textarea{width:100%;min-width:0;max-width:100%;border:1px solid var(--line);border-radius:14px;background:#091625;color:#fff;padding:13px;font:inherit}
+textarea{resize:vertical}.primary{background:linear-gradient(#50aaff,#277ad1);border:0}.secondary{background:#1a2d48}.row{margin-top:10px}
+.activity{padding:0;overflow:hidden}.main{padding:16px}.toprow{display:flex;justify-content:space-between;gap:10px}.machine{font-size:21px;font-weight:900}.owner{color:var(--muted);font-size:13px}
+.badge{font-size:11px;font-weight:900;border-radius:999px;padding:7px 10px;background:rgba(77,168,255,.13);color:#b9d9ff}.detail{padding:14px;border-top:1px solid var(--line);background:rgba(4,12,22,.25)}
+.field{display:grid;gap:5px;margin-top:10px}.field label{font-size:12px;color:var(--muted)}.candidate{width:100%;text-align:left;padding:12px;margin-top:8px}.candtop{display:flex;justify-content:space-between;gap:8px}
+.good{color:#90efc8}.warn{color:#ffe38a}.bad{color:#ff9aa2}.timeline{display:grid;gap:7px;margin-top:9px}.event{display:grid;grid-template-columns:62px minmax(0,1fr);gap:9px;padding:9px;border-radius:11px;background:#0d1d30}.event time{font-weight:900;color:#9bd1ff}
+.done{border-color:rgba(78,213,160,.55);background:rgba(78,213,160,.08)}.prio{border-color:rgba(77,168,255,.7)}.empty{text-align:center;color:var(--muted);padding:20px}
+.sticky{position:fixed;left:0;right:0;bottom:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(7,16,28,.98) 30%);z-index:30}.stickin{max-width:900px;margin:auto;display:grid;grid-template-columns:.7fr 1.3fr;gap:8px}
+.toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);background:#fff;color:#07101c;padding:10px 14px;border-radius:12px;font-weight:900;display:none;z-index:40}.toast.show{display:block}
+@media(min-width:720px){.roster{grid-template-columns:repeat(4,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="top">
+  <div class="brand"><div class="logo">↔</div><div><h1>Planejador de Revezamento</h1><div class="sub">Decide durante a ronda e valida no final.</div></div></div>
+  <div class="progress"><span></span><span></span><span></span><span></span></div>
+</header>
+
+<section class="step active">
+  <div class="head"><div class="ey">ETAPA 1 DE 4</div><h2>Quem está no turno?</h2><p>Selecione os preparadores presentes.</p></div>
+  <div class="card"><h3>Preparadores <span id="count" class="small"></span></h3><div id="roster" class="roster"></div>
+    <div class="row"><input id="newName" class="input" placeholder="Adicionar nome"><button id="addName" class="btn secondary" type="button">Adicionar</button></div>
+  </div>
+</section>
+
+<section class="step">
+  <div class="head"><div class="ey">ETAPA 2 DE 4</div><h2>Carregar situação</h2><p>Cole o relatório do turno.</p></div>
+  <div class="card"><textarea id="report" rows="15" placeholder="Cole o relatório aqui..."></textarea>
+    <div class="row"><button id="example" class="btn secondary" type="button">Exemplo</button><button id="parse" class="btn primary" type="button">Carregar</button></div>
+  </div>
+</section>
+
+<section class="step">
+  <div class="head"><div class="ey">ETAPA 3 DE 4</div><h2>Ronda assistida</h2><p>Decida quem cobre e quem assume os próximos setups.</p></div>
+  <div id="priorities"></div>
+  <div class="card"><h3>Preparadores livres</h3><div id="freeMeals"></div></div>
+  <div id="activities"></div>
+  <div id="future"></div>
+</section>
+
+<section class="step">
+  <div class="head"><div class="ey">ETAPA 4 DE 4</div><h2>Plano validado</h2><p>Resumo das decisões da ronda.</p></div>
+  <div id="final"></div>
+</section>
+</div>
+
+<div class="sticky"><div class="stickin"><button id="back" class="btn secondary" type="button">Voltar</button><button id="next" class="btn primary" type="button">Continuar</button></div></div>
+<div id="toast" class="toast"></div>
+
 <script>
-(()=>{'use strict';
-const BASE=['Lucas V.','Lucas R.','Marlon','Ewerson','Everson','Clayton','Wendel','Gabriel','Adriano','Luciano','Juliano','Nattan','Marcio','Christoffer','Patrício','Mateus','Alan','Shaiane','Willians'];
-const MEAL_SLOTS=['18:00','18:30','19:00','19:30','20:00','20:30'];
-const state={step:0,roster:[...BASE],present:new Set(),activities:[],completedPeople:new Set(),meals:{},covers:{}};
-const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
-const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
-const toMin=t=>{const[h,m]=String(t||'00:00').split(':').map(Number);return h*60+m};
-const toTime=m=>`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
-const overlaps=(a,b,c,d)=>Math.max(a,c)<Math.min(b,d);
-const id=()=>Math.random().toString(36).slice(2);
-function toast(x){const e=$('#toast');e.textContent=x;e.classList.add('show');clearTimeout(window.__t);window.__t=setTimeout(()=>e.classList.remove('show'),1500)}
-function personFromLine(line,present){const u=norm(line);const ordered=[...present].sort((a,b)=>b.length-a.length);const exact=ordered.find(n=>u.includes(norm(n)));if(exact)return exact;if(/\bLUCAS\b/.test(u)){return ordered.find(n=>norm(n)==='LUCAS V.')||ordered.find(n=>norm(n).startsWith('LUCAS V'))||null}return null}
-function sectionFromHeader(u){if(u.includes('PROXIMOS SETUPS'))return'future';if(u.includes('MAQUINAS EM SETUP')||u==='SETUP:'||u==='SETUP')return'setup';if(u.includes('MAQUINAS EM AJUSTES')||u==='AJUSTES:'||u==='AJUSTES')return'adjust';if(u.includes('MANUTENCAO')||u.includes('SETUPS 1')||u.includes('SETUPS 3')||u.includes('ORDENS PARA SELECAO')||u.includes('SELECAO')||u.includes('BOM TRABALHO'))return'ignore';return null}
-function parseReportText(raw){let section='';const activeByMachine=new Map(),futuresByMachine=new Map(),completedPeople=new Set();for(const original of raw.split(/\n/)){const line=original.trim();if(!line)continue;const u=norm(line).replace(/\*/g,'');const header=sectionFromHeader(u);if(header){section=header;continue}if(!['setup','adjust','future'].includes(section))continue;const mm=line.match(/TNL\s*0*(\d{1,3})/i);if(!mm)continue;const machine=`TNL ${String(mm[1]).padStart(3,'0')}`;if(section==='future'){const time=(line.match(/\b(\d{1,2}:\d{2})\b/)||[])[1]||'20:30';futuresByMachine.set(machine,{id:id(),type:'future',machine,start:time,owner:null});continue}const owner=personFromLine(line,state.present);if(!owner)continue;const done=line.includes('✅');if(done){completedPeople.add(owner);activeByMachine.delete(machine);continue}activeByMachine.set(machine,{id:id(),type:section,machine,owner,need:null,preferred:'20:30',finish:null})}const active=[...activeByMachine.values()];const futures=[...futuresByMachine.values()];const activeOwners=new Set(active.map(a=>a.owner));for(const owner of Array.from(completedPeople)){if(activeOwners.has(owner))completedPeople.delete(owner)}return{activities:[...active,...futures],completedPeople}}
-function renderRoster(){$('#roster').innerHTML=state.roster.map(n=>`<button type="button" class="chip ${state.present.has(n)?'sel':''}" data-person="${n}">${n}</button>`).join('');$$('[data-person]').forEach(btn=>btn.onclick=()=>{const name=btn.dataset.person;state.present.has(name)?state.present.delete(name):state.present.add(name);renderRoster()});$('#count').textContent=`(${state.present.size} selecionados)`}
-function currentActivities(name){return state.activities.filter(a=>a.type!=='future'&&a.owner===name)}
-function availableAt(name){const current=currentActivities(name);if(!current.length)return 1080;let latest=1080;for(const a of current){if(a.need===false&&a.finish)latest=Math.max(latest,toMin(a.finish));else return 1320}return latest}
-function agenda(name,ignoreCoverId=null,ignoreFutureId=null){const events=[];const meal=state.meals[name];if(meal)events.push({s:toMin(meal),e:toMin(meal)+60,label:'Jantar',type:'meal'});Object.entries(state.covers).forEach(([cid,cover])=>{if(cid===ignoreCoverId||cover.who!==name)return;const activity=state.activities.find(a=>a.id===cid);if(activity)events.push({s:toMin(cover.time),e:toMin(cover.time)+60,label:`Cobre ${activity.owner} na ${activity.machine}`,type:'cover'})});state.activities.filter(a=>a.type==='future'&&a.owner===name&&a.id!==ignoreFutureId).forEach(a=>events.push({s:toMin(a.start),e:1320,label:`Inicia ${a.machine}`,type:'future'}));return events.sort((a,b)=>a.s-b.s)}
-function findMealSuggestion(name,deadline=null,extraEvents=[],allowMove=false){const currentMeal=state.meals[name];const freeFrom=availableAt(name);const events=[...agenda(name).filter(x=>!(allowMove&&x.type==='meal')),...extraEvents];if(currentMeal&&!allowMove){const s=toMin(currentMeal),e=s+60;if(s>=freeFrom&&(deadline===null||e<=deadline)&&!events.some(x=>x.type!=='meal'&&overlaps(x.s,x.e,s,e)))return currentMeal}for(const slot of MEAL_SLOTS){const s=toMin(slot),e=s+60;if(s<freeFrom)continue;if(deadline!==null&&e>deadline)continue;if(!events.some(x=>overlaps(x.s,x.e,s,e)))return slot}return null}
-function timelineHtml(name,extraEvents=[]){const list=[...agenda(name),...extraEvents].sort((a,b)=>a.s-b.s);return `<div class="timeline">${list.map(x=>`<div class="event"><time>${toTime(x.s)}</time><span>${x.label} — ${x.e>=1320?'até o fim do turno':`até ${toTime(x.e)}`}</span></div>`).join('')}</div>`}
-function coverCandidate(name,activity){if(name===activity.owner)return{level:'bad',title:'Não funciona',reason:'É o próprio responsável.'};const s=toMin(activity.preferred),e=s+60,freeFrom=availableAt(name);if(freeFrom>s){const current=currentActivities(name).map(a=>a.machine).join(', ');return{level:'bad',title:'Indisponível',reason:`Ainda estará em ${current||'outra atividade'}.`}}if(agenda(name,activity.id).some(x=>overlaps(x.s,x.e,s,e)))return{level:'bad',title:'Não funciona',reason:'Já tem compromisso nesse horário.'};const meal=state.meals[name]||findMealSuggestion(name,null,[{s,e,label:'Cobertura'}]);if(!meal)return{level:'bad',title:'Sem encaixe',reason:'Não há horário válido para a janta desse preparador.'};const autoMeal=!state.meals[name];return{level:'good',title:autoMeal?'Boa escolha':'Melhor encaixe',reason:autoMeal?`Pode jantar às ${meal} e fazer a cobertura.`:'Agenda sem conflito.',suggestedMeal:meal}}
-function futureCandidate(name,future){const start=toMin(future.start),freeFrom=availableAt(name),current=currentActivities(name);if(freeFrom>start){const machines=current.map(a=>a.machine).join(', '),hasUnknownFinish=current.some(a=>!(a.need===false&&a.finish));return{score:-999,level:'bad',title:'Indisponível',reason:hasUnknownFinish?`Ainda estará em ${machines||'outra atividade'}. Informe que não precisa de revezamento e o horário de término para liberar essa opção.`:`Ficará livre somente às ${toTime(freeFrom)}.`}}const otherEvents=agenda(name,null,future.id).filter(x=>x.type!=='meal');if(otherEvents.some(x=>overlaps(x.s,x.e,start,1320)))return{score:-999,level:'bad',title:'Não funciona',reason:'Já possui cobertura ou outro setup a partir desse horário.'};const currentMeal=state.meals[name]||null,currentMealWorks=currentMeal&&toMin(currentMeal)>=freeFrom&&toMin(currentMeal)+60<=start;const meal=currentMealWorks?currentMeal:findMealSuggestion(name,start,[{s:start,e:1320,label:'Setup futuro'}],true);if(!meal)return{score:-999,level:'bad',title:'Sem encaixe',reason:`Não há uma janela de 1 hora para jantar antes das ${future.start}.`};const changesMeal=!currentMealWorks||currentMeal!==meal;let score=60+(freeFrom===1080?20:10)+(changesMeal?8:12);const coverCount=Object.values(state.covers).filter(x=>x.who===name).length;score-=coverCount*5;let title=score>=85?'Melhor opção':'Boa opção';let reason;if(changesMeal){title='Funciona ajustando a janta';reason=`Se ${name} jantar das ${meal} às ${toTime(toMin(meal)+60)}, consegue iniciar ${future.machine} às ${future.start}.`}else reason=`${name} já consegue jantar às ${meal} e iniciar ${future.machine} às ${future.start}.`;if(freeFrom>1080)reason+=` Fica livre às ${toTime(freeFrom)}.`;if(coverCount)reason+=' Já possui outra cobertura planejada.';return{score,level:score>=82?'good':'warn',title,reason,suggestedMeal:meal,changesMeal}}
-function candidateList(activity){const order={good:0,warn:1,bad:2};return Array.from(state.present).filter(n=>n!==activity.owner).map(n=>({name:n,status:coverCandidate(n,activity)})).sort((a,b)=>order[a.status.level]-order[b.status.level]).map(({name,status})=>{const extra=status.level==='good'?[...(!state.meals[name]&&status.suggestedMeal?[{s:toMin(status.suggestedMeal),e:toMin(status.suggestedMeal)+60,label:'Jantar'}]:[]),{s:toMin(activity.preferred),e:toMin(activity.preferred)+60,label:`Cobre ${activity.owner} na ${activity.machine}`}]:[];return `<button type="button" class="candidate" data-cover="${activity.id}" data-name="${name}"><div class="candtop"><strong>${name}</strong><span class="${status.level}">${status.title}</span></div><div class="small">${status.reason}</div>${status.level==='good'?timelineHtml(name,extra):''}</button>`}).join('')}
-function activityCard(a){const chosen=state.covers[a.id];return `<article class="card activity"><div class="main"><div class="toprow"><div><div class="machine">${a.type==='setup'?'🔴':'🟡'} ${a.machine}</div><div class="owner">${a.owner}</div></div><span class="badge">${a.type==='setup'?'SETUP':'AJUSTE'}</span></div><div class="choice"><button type="button" data-need="${a.id}" data-value="0" class="${a.need===false?'on':''}">Não precisa</button><button type="button" data-need="${a.id}" data-value="1" class="${a.need===true?'on':''}">Precisa revezar</button></div></div>${a.need!==null?`<div class="detail"><div class="field"><label>Horário da janta</label><input class="input" type="time" min="18:00" max="20:30" step="1800" data-pref="${a.id}" value="${a.preferred}"></div>${a.need===false?`<div class="field"><label>Termina às</label><input class="input" type="time" data-finish="${a.id}" value="${a.finish||'19:30'}"></div>`:''}${a.need===true?`<div class="field"><label>Quem vai cobrir?</label>${chosen?`<div class="card done"><strong>${chosen.who}</strong><div class="small">${chosen.time}–${toTime(toMin(chosen.time)+60)}</div><button type="button" class="btn secondary" data-change="${a.id}">Trocar</button></div>`:candidateList(a)}</div>`:''}</div>`:''}</article>`}
-function futureCard(future){const candidates=Array.from(state.present).map(name=>({name,status:futureCandidate(name,future)})).sort((a,b)=>b.status.score-a.status.score).slice(0,7);return `<div class="card"><div class="toprow"><div><div class="machine">🔴 ${future.machine}</div><div class="owner">Próximo setup</div></div><span class="badge">${future.start}</span></div><div class="field"><label>Horário de início</label><input class="input" type="time" data-future-start="${future.id}" value="${future.start}"></div>${future.owner?`<div class="card done"><strong>${future.owner}</strong><div class="small">Responsável reservado</div><button type="button" class="btn secondary" data-clear-future="${future.id}">Trocar</button></div>`:`<div class="field"><label>Sugestões de responsável</label>${candidates.map(({name,status})=>{const extra=status.level!=='bad'?[...(status.suggestedMeal?[{s:toMin(status.suggestedMeal),e:toMin(status.suggestedMeal)+60,label:status.changesMeal?'Jantar sugerido':'Jantar'}]:[]),{s:toMin(future.start),e:1320,label:`Inicia ${future.machine}`}]:[];return `<button type="button" class="candidate" data-assign-future="${future.id}" data-name="${name}"><div class="candtop"><strong>${name}</strong><span class="${status.level}">${status.title}</span></div><div class="small">${status.reason}</div>${status.level!=='bad'?timelineHtml(name,extra):''}</button>`}).join('')}</div>`}</div>`}
-function renderRound(){const activeOwners=new Set(state.activities.filter(a=>a.type!=='future').map(a=>a.owner)),free=Array.from(state.present).filter(n=>!activeOwners.has(n));$('#freeMeals').innerHTML=free.length?free.map(n=>`<div class="field ${state.completedPeople.has(n)?'done':''}" style="padding:8px;border-radius:12px"><label>${n}${state.completedPeople.has(n)?' — atividade concluída ✅':''}</label><input class="input" type="time" min="18:00" max="20:30" step="1800" data-meal="${n}" value="${state.meals[n]||'18:00'}"></div>`).join(''):'<div class="small">Nenhum preparador totalmente livre.</div>';const future=state.activities.filter(a=>a.type==='future').sort((a,b)=>toMin(a.start)-toMin(b.start));$('#priorities').innerHTML=future.length?`<div class="card prio"><h3>🎯 Prioridades</h3>${future.map((a,i)=>`<div>${i+1}. ${a.machine} — ${a.start}</div>`).join('')}</div>`:'';$('#activities').innerHTML=state.activities.filter(a=>a.type!=='future').map(activityCard).join('')||'<div class="card empty">Nenhuma atividade em andamento.</div>';$('#future').innerHTML=future.map(futureCard).join('')||'<div class="card empty">Nenhum próximo setup.</div>';bindRound()}
-function bindRound(){$$('[data-need]').forEach(btn=>btn.onclick=()=>{const a=state.activities.find(x=>x.id===btn.dataset.need);a.need=btn.dataset.value==='1';if(!a.need)delete state.covers[a.id];renderRound()});$$('[data-pref]').forEach(input=>input.onchange=()=>{const a=state.activities.find(x=>x.id===input.dataset.pref);a.preferred=input.value;state.meals[a.owner]=input.value;if(state.covers[a.id])state.covers[a.id].time=input.value;renderRound()});$$('[data-finish]').forEach(input=>input.onchange=()=>{state.activities.find(x=>x.id===input.dataset.finish).finish=input.value;renderRound()});$$('[data-meal]').forEach(input=>{if(!state.meals[input.dataset.meal])state.meals[input.dataset.meal]=input.value;input.onchange=()=>{state.meals[input.dataset.meal]=input.value;renderRound()}});$$('[data-cover]').forEach(btn=>btn.onclick=()=>{const a=state.activities.find(x=>x.id===btn.dataset.cover),status=coverCandidate(btn.dataset.name,a);if(status.level!=='good'){toast(status.reason);return}if(!state.meals[btn.dataset.name]&&status.suggestedMeal)state.meals[btn.dataset.name]=status.suggestedMeal;state.covers[a.id]={who:btn.dataset.name,time:a.preferred};state.meals[a.owner]=a.preferred;renderRound()});$$('[data-change]').forEach(btn=>btn.onclick=()=>{delete state.covers[btn.dataset.change];renderRound()});$$('[data-future-start]').forEach(input=>input.onchange=()=>{state.activities.find(x=>x.id===input.dataset.futureStart).start=input.value;renderRound()});$$('[data-assign-future]').forEach(btn=>btn.onclick=()=>{const f=state.activities.find(x=>x.id===btn.dataset.assignFuture),status=futureCandidate(btn.dataset.name,f);if(status.level==='bad'){toast(status.reason);return}if(status.suggestedMeal)state.meals[btn.dataset.name]=status.suggestedMeal;f.owner=btn.dataset.name;renderRound()});$$('[data-clear-future]').forEach(btn=>btn.onclick=()=>{state.activities.find(x=>x.id===btn.dataset.clearFuture).owner=null;renderRound()})}
-function renderFinal(){const issues=[];state.activities.filter(a=>a.type!=='future'&&a.need===true&&!state.covers[a.id]).forEach(a=>issues.push(`${a.machine}: falta escolher quem cobre ${a.owner}.`));state.activities.filter(a=>a.type==='future'&&!a.owner).forEach(a=>issues.push(`${a.machine}: falta responsável.`));$('#final').innerHTML=`<div class="card ${issues.length?'':'done'}"><h3>${issues.length?'⚠️ Ajustes necessários':'✅ Plano completo'}</h3>${issues.map(x=>`<div class="small" style="margin:7px 0">• ${x}</div>`).join('')}</div>`}
-function update(){$$('.step').forEach((el,i)=>el.classList.toggle('active',i===state.step));$$('.progress span').forEach((el,i)=>el.classList.toggle('on',i<=state.step));$('#back').style.visibility=state.step===0?'hidden':'visible';$('#next').textContent=state.step===3?'Revisar ronda':'Continuar';if(state.step===2)renderRound();if(state.step===3)renderFinal();window.scrollTo({top:0,behavior:'smooth'})}
-$('#addName').onclick=()=>{const input=$('#newName'),typed=input.value.trim();if(!typed){toast('Digite o nome');return}let name=state.roster.find(x=>norm(x)===norm(typed));if(!name){name=typed;state.roster.push(name)}state.present.add(name);input.value='';renderRoster()};$('#newName').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#addName').click()}};$('#example').onclick=()=>{$('#report').value='*MAQUINAS EM SETUP*\n🔴 TNL 053 - NATTAN\n🔴 TNL 076 - CLAYTON\n\n*MAQUINAS EM AJUSTES*\nTNL 033 - EWERSON\nTNL 042 - EVERSON✅\n\n*PRÓXIMOS SETUPS*\n🔴 TNL 097 - Setup 2°T (18:55)'};$('#parse').onclick=()=>{const raw=$('#report').value.trim();if(!raw){toast('Cole o relatório');return}const parsed=parseReportText(raw);state.activities=parsed.activities;state.completedPeople=parsed.completedPeople;state.meals={};state.covers={};state.step=2;update()};$('#back').onclick=()=>{if(state.step>0){state.step--;update()}};$('#next').onclick=()=>{if(state.step===0&&state.present.size<2){toast('Selecione ao menos 2 preparadores');return}if(state.step===1){const raw=$('#report').value.trim();if(!raw){toast('Cole o relatório');return}const parsed=parseReportText(raw);state.activities=parsed.activities;state.completedPeople=parsed.completedPeople;state.meals={};state.covers={};state.step=2;update();return}state.step=state.step===3?2:state.step+1;update()};window.__plannerTest={parseReportText,state};renderRoster();update()})();
-</script></body></html>
+(() => {
+'use strict';
+
+const BASE = ['Lucas','Marlon','Marcio','Clayton','Juliano','Luciano','Nattan','Alan','Wendel','Ewerson','Christoffer'];
+const MEAL_SLOTS = ['18:00','18:30','19:00','19:30','20:00','20:30'];
+const state = {step:0, roster:[...BASE], present:new Set(), activities:[], completedPeople:new Set(), meals:{}, covers:{}};
+
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+const toMin = t => { const [h,m] = String(t || '00:00').split(':').map(Number); return h*60+m; };
+const toTime = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+const overlaps = (a,b,c,d) => Math.max(a,c) < Math.min(b,d);
+const uid = () => Math.random().toString(36).slice(2);
+
+function toast(text){
+  const el = $('#toast');
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(window.__toast);
+  window.__toast = setTimeout(() => el.classList.remove('show'), 1600);
+}
+
+function personAliases(name){
+  const n = norm(name);
+  if(n === 'LUCAS') return ['LUCAS V','LUCAS'];
+  if(n === 'MARCIO') return ['MARCIO','MÁRCIO'];
+  return [n.replace(/\.$/,'')];
+}
+
+function findOwner(line){
+  const cleaned = norm(line).replace(/\bOP\b/g,' ').replace(/\s+/g,' ');
+  const people = Array.from(state.present).sort((a,b) => b.length-a.length);
+  for(const person of people){
+    for(const alias of personAliases(person)){
+      const pattern = new RegExp(`(^|[^A-Z0-9])${alias.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}([^A-Z0-9]|$)`);
+      if(pattern.test(cleaned)) return person;
+    }
+  }
+  return null;
+}
+
+function classifyHeader(line){
+  const u = norm(line).replace(/\*/g,'').replace(/:$/,'').trim();
+  if(u === 'SETUP' || u.includes('MAQUINAS EM SETUP')) return 'setup';
+  if(u === 'AJUSTES' || u.includes('MAQUINAS EM AJUSTES')) return 'adjust';
+  if(u.includes('PROXIMOS SETUPS')) return 'future';
+  if(
+    u.includes('MANUTENCAO') ||
+    u.includes('SETUPS 1') ||
+    u.includes('SETUPS 3') ||
+    u.includes('ORDENS PARA SELECAO') ||
+    u.includes('SELECAO') ||
+    u.includes('BOM TRABALHO') ||
+    u.includes('SITUACAO DO SETOR') ||
+    /^\d+° TURNO$/.test(u)
+  ) return 'ignore';
+  return null;
+}
+
+function parseReportText(raw){
+  let section = 'ignore';
+  const activeByMachine = new Map();
+  const futures = [];
+  const completedPeople = new Set();
+
+  for(const original of raw.split(/\n/)){
+    const line = original.trim();
+    if(!line) continue;
+
+    const header = classifyHeader(line);
+    if(header){ section = header; continue; }
+    if(!['setup','adjust','future'].includes(section)) continue;
+
+    const machineMatch = line.match(/TNL\s*0*(\d{1,3})/i);
+    if(!machineMatch) continue;
+    const machine = `TNL ${String(machineMatch[1]).padStart(3,'0')}`;
+    const time = (line.match(/\b(\d{1,2}:\d{2})\b/) || [])[1] || null;
+
+    if(section === 'future'){
+      const existing = futures.findIndex(x => x.machine === machine);
+      const item = {id:uid(), type:'future', machine, start:time || '20:30', owner:null};
+      if(existing >= 0) futures[existing] = item; else futures.push(item);
+      continue;
+    }
+
+    const owner = findOwner(line);
+    if(!owner){
+      activeByMachine.delete(machine);
+      continue;
+    }
+
+    if(line.includes('✅')){
+      completedPeople.add(owner);
+      activeByMachine.delete(machine);
+      continue;
+    }
+
+    activeByMachine.set(machine, {
+      id:uid(), type:section, machine, owner,
+      need:null, preferred:'20:30', finish:null
+    });
+  }
+
+  const active = Array.from(activeByMachine.values());
+  const activeOwners = new Set(active.map(x => x.owner));
+  for(const owner of Array.from(completedPeople)){
+    if(activeOwners.has(owner)) completedPeople.delete(owner);
+  }
+  return {activities:[...active,...futures], completedPeople};
+}
+
+function renderRoster(){
+  $('#roster').innerHTML = state.roster.map(name =>
+    `<button type="button" class="chip ${state.present.has(name)?'sel':''}" data-person="${name}">${name}</button>`
+  ).join('');
+  $$('[data-person]').forEach(btn => btn.onclick = () => {
+    const name = btn.dataset.person;
+    if(state.present.has(name)) state.present.delete(name); else state.present.add(name);
+    renderRoster();
+  });
+  $('#count').textContent = `(${state.present.size} selecionados)`;
+}
+
+function currentActivities(name){
+  return state.activities.filter(a => a.type!=='future' && a.owner===name);
+}
+
+function availableAt(name){
+  const current = currentActivities(name);
+  if(!current.length) return 1080;
+  let latest = 1080;
+  for(const a of current){
+    if(a.need===false && a.finish) latest = Math.max(latest,toMin(a.finish));
+    else return 1320;
+  }
+  return latest;
+}
+
+function agenda(name,ignoreCoverId=null,ignoreFutureId=null){
+  const events = [];
+  const meal = state.meals[name];
+  if(meal) events.push({s:toMin(meal),e:toMin(meal)+60,label:'Jantar',type:'meal'});
+
+  for(const [activityId,cover] of Object.entries(state.covers)){
+    if(activityId===ignoreCoverId || cover.who!==name) continue;
+    const activity = state.activities.find(a => a.id===activityId);
+    if(activity) events.push({s:toMin(cover.time),e:toMin(cover.time)+60,label:`Cobre ${activity.owner} na ${activity.machine}`,type:'cover'});
+  }
+
+  for(const a of state.activities.filter(x => x.type==='future' && x.owner===name && x.id!==ignoreFutureId)){
+    events.push({s:toMin(a.start),e:1320,label:`Inicia ${a.machine}`,type:'future'});
+  }
+  return events.sort((a,b) => a.s-b.s);
+}
+
+function findMealSuggestion(name,deadline=null,extraEvents=[],allowMove=false){
+  const freeFrom = availableAt(name);
+  const currentMeal = state.meals[name];
+  const events = [...agenda(name).filter(e => !(allowMove && e.type==='meal')),...extraEvents];
+
+  if(currentMeal && !allowMove){
+    const s=toMin(currentMeal), e=s+60;
+    if(s>=freeFrom && (deadline===null || e<=deadline) && !events.some(x => x.type!=='meal' && overlaps(x.s,x.e,s,e))) return currentMeal;
+  }
+
+  for(const slot of MEAL_SLOTS){
+    const s=toMin(slot), e=s+60;
+    if(s<freeFrom) continue;
+    if(deadline!==null && e>deadline) continue;
+    if(!events.some(x => overlaps(x.s,x.e,s,e))) return slot;
+  }
+  return null;
+}
+
+function timelineHtml(name,extraEvents=[],replaceMeal=false){
+  const base = agenda(name).filter(event => !(replaceMeal && event.type==='meal'));
+  const list = [...base,...extraEvents].sort((a,b)=>a.s-b.s);
+  return `<div class="timeline">${list.map(e => `<div class="event"><time>${toTime(e.s)}</time><span>${e.label} — ${e.e>=1320?'até o fim do turno':`até ${toTime(e.e)}`}</span></div>`).join('')}</div>`;
+}
+
+function coverCandidate(name,activity){
+  if(name===activity.owner) return {level:'bad',title:'Não funciona',reason:'É o próprio responsável.'};
+  const s=toMin(activity.preferred), e=s+60;
+  const freeFrom=availableAt(name);
+  if(freeFrom>s){
+    const machines=currentActivities(name).map(a=>a.machine).join(', ');
+    return {level:'bad',title:'Indisponível',reason:`Ainda estará em ${machines || 'outra atividade'}.`};
+  }
+  if(agenda(name,activity.id).some(x=>overlaps(x.s,x.e,s,e))) return {level:'bad',title:'Não funciona',reason:'Já tem compromisso nesse horário.'};
+  const meal = state.meals[name] || findMealSuggestion(name,null,[{s,e,label:'Cobertura'}]);
+  if(!meal) return {level:'bad',title:'Sem encaixe',reason:'Não há horário válido para a janta desse preparador.'};
+  return {level:'good',title:state.meals[name]?'Melhor encaixe':'Boa escolha',reason:state.meals[name]?'Agenda sem conflito.':`Pode jantar às ${meal} e fazer a cobertura.`,suggestedMeal:meal};
+}
+
+function futureCandidate(name,future){
+  const start=toMin(future.start), freeFrom=availableAt(name), current=currentActivities(name);
+  if(freeFrom>start){
+    const machines=current.map(a=>a.machine).join(', ');
+    const unknown=current.some(a=>!(a.need===false && a.finish));
+    return {score:-999,level:'bad',title:'Indisponível',reason:unknown?`Ainda estará em ${machines || 'outra atividade'}. Informe que não precisa de revezamento e o horário de término para liberar essa opção.`:`Ficará livre somente às ${toTime(freeFrom)}.`};
+  }
+
+  const otherEvents=agenda(name,null,future.id).filter(e=>e.type!=='meal');
+  if(otherEvents.some(e=>overlaps(e.s,e.e,start,1320))) return {score:-999,level:'bad',title:'Não funciona',reason:'Já possui cobertura ou outro setup a partir desse horário.'};
+
+  const currentMeal=state.meals[name] || null;
+  const currentWorks=currentMeal && toMin(currentMeal)>=freeFrom && toMin(currentMeal)+60<=start && !otherEvents.some(e=>overlaps(e.s,e.e,toMin(currentMeal),toMin(currentMeal)+60));
+  const meal=currentWorks?currentMeal:findMealSuggestion(name,start,[{s:start,e:1320,label:'Setup futuro'}],true);
+  if(!meal) return {score:-999,level:'bad',title:'Sem encaixe',reason:`Não existe janela de 60 minutos para jantar antes das ${future.start}.`};
+
+  const changesMeal=Boolean(currentMeal && currentMeal!==meal);
+  return {
+    score:100-(toMin(meal)-1080)/30-(changesMeal?4:0),level:'good',
+    title:changesMeal?'Ajuste recomendado':'Boa escolha',
+    reason:changesMeal?`Se mover a janta de ${currentMeal} para ${meal}–${toTime(toMin(meal)+60)}, consegue iniciar a ${future.machine} às ${future.start}.`:`Se jantar das ${meal} às ${toTime(toMin(meal)+60)}, consegue iniciar a ${future.machine} às ${future.start}.`,
+    suggestedMeal:meal, changesMeal
+  };
+}
+
+function candidateList(activity){
+  return Array.from(state.present).map(name => {
+    const status=coverCandidate(name,activity);
+    const extra=status.level==='good' && !state.meals[name] && status.suggestedMeal ? [{s:toMin(status.suggestedMeal),e:toMin(status.suggestedMeal)+60,label:'Jantar'},{s:toMin(activity.preferred),e:toMin(activity.preferred)+60,label:`Cobre ${activity.owner} na ${activity.machine}`}] : [];
+    return `<button type="button" class="candidate" data-cover="${activity.id}" data-name="${name}">
+      <div class="candtop"><strong>${name}</strong><span class="${status.level}">${status.title}</span></div>
+      <div class="small">${status.reason}</div>
+      ${status.level==='good'?timelineHtml(name,extra):''}
+    </button>`;
+  }).join('');
+}
+
+function activityCard(a){
+  const chosen = state.covers[a.id];
+  return `<article class="card activity">
+    <div class="main">
+      <div class="toprow"><div><div class="machine">${a.type==='setup'?'🔴':'🟡'} ${a.machine}</div><div class="owner">${a.owner}</div></div><span class="badge">${a.type==='setup'?'SETUP':'AJUSTE'}</span></div>
+      <div class="choice">
+        <button type="button" data-need="${a.id}" data-value="0" class="${a.need===false?'on':''}">Não precisa</button>
+        <button type="button" data-need="${a.id}" data-value="1" class="${a.need===true?'on':''}">Precisa revezar</button>
+      </div>
+    </div>
+    ${a.need!==null?`<div class="detail">
+      <div class="field"><label>Horário da janta</label><input class="input" type="time" min="18:00" max="20:30" step="1800" data-pref="${a.id}" value="${a.preferred}"></div>
+      ${a.need===false?`<div class="field"><label>Termina às</label><input class="input" type="time" data-finish="${a.id}" value="${a.finish||'19:30'}"></div>`:''}
+      ${a.need===true?`<div class="field"><label>Quem vai cobrir?</label>
+        ${chosen?`<div class="card done"><strong>${chosen.who}</strong><div class="small">${chosen.time}–${toTime(toMin(chosen.time)+60)}</div><button type="button" class="btn secondary" data-change="${a.id}">Trocar</button></div>`:candidateList(a)}
+      </div>`:''}
+    </div>`:''}
+  </article>`;
+}
+
+function futureCard(future){
+  const candidates = Array.from(state.present)
+    .map(name => ({name,status:futureCandidate(name,future)}))
+    .sort((a,b) => b.status.score-a.status.score)
+    .slice(0,7);
+
+  return `<div class="card">
+    <div class="toprow"><div><div class="machine">🔴 ${future.machine}</div><div class="owner">Próximo setup</div></div><span class="badge">${future.start}</span></div>
+    <div class="field"><label>Horário de início</label><input class="input" type="time" data-future-start="${future.id}" value="${future.start}"></div>
+    ${future.owner?`<div class="card done"><strong>${future.owner}</strong><div class="small">Responsável reservado</div><button type="button" class="btn secondary" data-clear-future="${future.id}">Trocar</button></div>`:
+      `<div class="field"><label>Sugestões de responsável</label>${candidates.map(({name,status}) => {
+        const extra = status.level!=='bad' ? [
+          ...(!state.meals[name] && status.suggestedMeal ? [{s:toMin(status.suggestedMeal),e:toMin(status.suggestedMeal)+60,label:'Jantar'}] : []),
+          {s:toMin(future.start),e:1320,label:`Inicia ${future.machine}`}
+        ] : [];
+        return `<button type="button" class="candidate" data-assign-future="${future.id}" data-name="${name}">
+          <div class="candtop"><strong>${name}</strong><span class="${status.level}">${status.title}</span></div>
+          <div class="small">${status.reason}</div>
+          ${status.level!=='bad'?timelineHtml(name,extra,status.changesMeal):''}
+        </button>`;
+      }).join('')}</div>`}
+  </div>`;
+}
+
+function renderRound(){
+  const activeOwners = new Set(state.activities.filter(a => a.type!=='future').map(a => a.owner));
+  const free = Array.from(state.present).filter(n => !activeOwners.has(n));
+
+  $('#freeMeals').innerHTML = free.length ? free.map(n =>
+    `<div class="field ${state.completedPeople.has(n)?'done':''}" style="padding:8px;border-radius:12px">
+      <label>${n}${state.completedPeople.has(n)?' — atividade concluída ✅':''}</label>
+      <input class="input" type="time" min="18:00" max="20:30" step="1800" data-meal="${n}" value="${state.meals[n]||'18:00'}">
+    </div>`
+  ).join('') : '<div class="small">Nenhum preparador totalmente livre.</div>';
+
+  const future = state.activities.filter(a => a.type==='future').sort((a,b) => toMin(a.start)-toMin(b.start));
+  $('#priorities').innerHTML = future.length ? `<div class="card prio"><h3>🎯 Prioridades</h3>${future.map((a,i) => `<div>${i+1}. ${a.machine} — ${a.start}</div>`).join('')}</div>` : '';
+  $('#activities').innerHTML = state.activities.filter(a => a.type!=='future').map(activityCard).join('') || '<div class="card empty">Nenhuma atividade em andamento.</div>';
+  $('#future').innerHTML = future.map(futureCard).join('') || '<div class="card empty">Nenhum próximo setup.</div>';
+  bindRound();
+}
+
+function bindRound(){
+  $$('[data-need]').forEach(btn => btn.onclick = () => {
+    const a = state.activities.find(x => x.id===btn.dataset.need);
+    a.need = btn.dataset.value === '1';
+    if(!a.need) delete state.covers[a.id];
+    renderRound();
+  });
+  $$('[data-pref]').forEach(input => input.onchange = () => {
+    const a = state.activities.find(x => x.id===input.dataset.pref);
+    a.preferred = input.value;
+    state.meals[a.owner] = input.value;
+    if(state.covers[a.id]) state.covers[a.id].time = input.value;
+    renderRound();
+  });
+  $$('[data-finish]').forEach(input => input.onchange = () => {
+    state.activities.find(x => x.id===input.dataset.finish).finish = input.value;
+    renderRound();
+  });
+  $$('[data-meal]').forEach(input => {
+    if(!state.meals[input.dataset.meal]) state.meals[input.dataset.meal] = input.value;
+    input.onchange = () => { state.meals[input.dataset.meal] = input.value; renderRound(); };
+  });
+  $$('[data-cover]').forEach(btn => btn.onclick = () => {
+    const a = state.activities.find(x => x.id===btn.dataset.cover);
+    const status = coverCandidate(btn.dataset.name,a);
+    if(status.level!=='good'){toast(status.reason);return;}
+    if(!state.meals[btn.dataset.name] && status.suggestedMeal) state.meals[btn.dataset.name] = status.suggestedMeal;
+    state.covers[a.id] = {who:btn.dataset.name,time:a.preferred};
+    state.meals[a.owner] = a.preferred;
+    renderRound();
+  });
+  $$('[data-change]').forEach(btn => btn.onclick = () => { delete state.covers[btn.dataset.change]; renderRound(); });
+  $$('[data-future-start]').forEach(input => input.onchange = () => {
+    state.activities.find(x => x.id===input.dataset.futureStart).start = input.value;
+    renderRound();
+  });
+  $$('[data-assign-future]').forEach(btn => btn.onclick = () => {
+    const f = state.activities.find(x => x.id===btn.dataset.assignFuture);
+    const status = futureCandidate(btn.dataset.name,f);
+    if(status.level==='bad'){toast(status.reason);return;}
+    if(status.suggestedMeal) state.meals[btn.dataset.name] = status.suggestedMeal;
+    f.owner = btn.dataset.name;
+    renderRound();
+  });
+  $$('[data-clear-future]').forEach(btn => btn.onclick = () => {
+    state.activities.find(x => x.id===btn.dataset.clearFuture).owner = null;
+    renderRound();
+  });
+}
+
+function renderFinal(){
+  const issues = [];
+  state.activities.filter(a => a.type!=='future' && a.need===true && !state.covers[a.id]).forEach(a => issues.push(`${a.machine}: falta escolher quem cobre ${a.owner}.`));
+  state.activities.filter(a => a.type==='future' && !a.owner).forEach(a => issues.push(`${a.machine}: falta responsável.`));
+  $('#final').innerHTML = `<div class="card ${issues.length?'':'done'}"><h3>${issues.length?'⚠️ Ajustes necessários':'✅ Plano completo'}</h3>${issues.map(x=>`<div class="small" style="margin:7px 0">• ${x}</div>`).join('')}</div>`;
+}
+
+function update(){
+  $$('.step').forEach((el,i) => el.classList.toggle('active',i===state.step));
+  $$('.progress span').forEach((el,i) => el.classList.toggle('on',i<=state.step));
+  $('#back').style.visibility = state.step===0 ? 'hidden' : 'visible';
+  $('#next').textContent = state.step===3 ? 'Revisar ronda' : 'Continuar';
+  if(state.step===2) renderRound();
+  if(state.step===3) renderFinal();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+$('#addName').onclick = () => {
+  const input = $('#newName');
+  const typed = input.value.trim();
+  if(!typed){toast('Digite o nome');return;}
+  let name = state.roster.find(x => norm(x)===norm(typed));
+  if(!name){name=typed;state.roster.push(name);}
+  state.present.add(name);
+  input.value='';
+  renderRoster();
+};
+$('#newName').onkeydown = e => { if(e.key==='Enter'){e.preventDefault();$('#addName').click();} };
+$('#example').onclick = () => {
+  $('#report').value = '*MAQUINAS EM SETUP*\\n🔴 TNL 053 - NATTAN\\n🔴 TNL 076 - CLAYTON\\n\\n*MAQUINAS EM AJUSTES*\\nTNL 033 - EWERSON\\n\\n*PRÓXIMOS SETUPS*\\n🔴 TNL 097 - Setup 2°T (18:55)';
+};
+$('#parse').onclick = () => {
+  const raw = $('#report').value.trim();
+  if(!raw){toast('Cole o relatório');return;}
+  const parsed = parseReportText(raw);
+  state.activities = parsed.activities;
+  state.completedPeople = parsed.completedPeople;
+  state.meals = {};
+  state.covers = {};
+  state.step = 2;
+  update();
+};
+$('#back').onclick = () => { if(state.step>0){state.step--;update();} };
+$('#next').onclick = () => {
+  if(state.step===0 && state.present.size<2){toast('Selecione ao menos 2 preparadores');return;}
+  if(state.step===1){
+    const raw = $('#report').value.trim();
+    if(!raw){toast('Cole o relatório');return;}
+    const parsed = parseReportText(raw);
+    state.activities = parsed.activities;
+    state.completedPeople = parsed.completedPeople;
+    state.meals = {};
+    state.covers = {};
+    state.step = 2;
+    update();
+    return;
+  }
+  state.step = state.step===3 ? 2 : state.step+1;
+  update();
+};
+
+window.__plannerTest = {parseReportText,state};
+renderRoster();
+update();
+})();
+</script>
+</body>
+</html>
