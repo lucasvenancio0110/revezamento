@@ -2,22 +2,23 @@
 'use strict';
 
 const FACTORY_ORDER=[
-  'Lucas V.',
-  'Everson',
-  'Clayton',
-  'Ewerson',
-  'Marlon',
-  'Luciano',
-  'Juliano',
-  'Marcio',
   'Alan',
   'Christoffer',
-  'Nattan'
+  'Clayton',
+  'Everson',
+  'Ewerson',
+  'Juliano',
+  'Lucas V.',
+  'Luciano',
+  'Marcio',
+  'Marlon',
+  'Nattan',
+  'Sebastião',
+  'Wendel'
 ];
 
 const REMOVED_DEFAULTS=new Set([
   'Lucas R.',
-  'Wendel',
   'Gabriel',
   'Adriano',
   'Patrício',
@@ -28,12 +29,29 @@ const REMOVED_DEFAULTS=new Set([
 
 let applying=false;
 
+function addMissingFactoryNames(){
+  const roster=document.querySelector('#roster');
+  const input=document.querySelector('#newName');
+  const addButton=document.querySelector('#addName');
+  if(!roster||!input||!addButton)return;
+
+  const existing=new Set(Array.from(roster.querySelectorAll('[data-person]')).map(b=>b.dataset.person));
+  for(const name of FACTORY_ORDER){
+    if(existing.has(name))continue;
+    input.value=name;
+    addButton.click();
+    existing.add(name);
+  }
+  input.value='';
+}
+
 function applyFactoryRoster(){
   if(applying)return;
   const roster=document.querySelector('#roster');
   if(!roster)return;
 
   applying=true;
+  addMissingFactoryNames();
 
   const buttons=Array.from(roster.querySelectorAll('[data-person]'));
   for(const button of buttons){
