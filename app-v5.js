@@ -2,106 +2,52 @@
 'use strict';
 const BASE=['Lucas V.','Lucas R.','Marlon','Ewerson','Everson','Clayton','Wendel','Gabriel','Adriano','Luciano','Juliano','Nattan','Marcio','Christoffer','Patrício','Mateus','Alan','Shaiane','Willians'];
 const SLOTS=['18:00','18:30','19:00','19:30','20:00','20:30'];
-const state={step:0,roster:[...BASE],present:new Set(),current:[],future:[],decisions:{},roundIndex:0,plan:null};
-const $=s=>document.querySelector(s);
-const $$=s=>Array.from(document.querySelectorAll(s));
+const END=1350,MOVE=10;
+const state={step:0,roster:[...BASE],present:new Set(),current:[],future:[],decisions:{},roundIndex:0,plan:null,previousPlan:null,lastSuggestion:null,view:'question'};
+const $=s=>document.querySelector(s),$$=s=>Array.from(document.querySelectorAll(s));
 const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
-const toMin=t=>{const p=String(t).split(':').map(Number);return p[0]*60+p[1]};
-const toTime=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+const toMin=t=>{const[h,m]=String(t||'00:00').split(':').map(Number);return h*60+m};
+const toTime=m=>`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
 const uid=()=>Math.random().toString(36).slice(2);
-function toast(msg){const e=$('#toast');if(!e)return;e.textContent=msg;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),1500)}
-function renderRoster(){
- const box=$('#roster');
- box.innerHTML=state.roster.map(n=>`<button class="chip ${state.present.has(n)?'sel':''}" data-person="${n}">${n}</button>`).join('');
- $$('[data-person]').forEach(b=>b.onclick=()=>{const n=b.dataset.person;state.present.has(n)?state.present.delete(n):state.present.add(n);renderRoster()});
- $('#count').textContent=`${state.present.size} presentes`;
-}
+const overlap=(a,b,c,d)=>Math.max(a,c)<Math.min(b,d);
+function toast(msg){const e=$('#toast');if(!e)return;e.textContent=msg;e.classList.add('show');clearTimeout(window.__toast);window.__toast=setTimeout(()=>e.classList.remove('show'),1600)}
+function renderRoster(){const box=$('#roster');box.innerHTML=state.roster.map(n=>`<button class="chip ${state.present.has(n)?'sel':''}" data-person="${n}">${n}</button>`).join('');$$('[data-person]').forEach(b=>b.onclick=()=>{const n=b.dataset.person;state.present.has(n)?state.present.delete(n):state.present.add(n);renderRoster()});$('#count').textContent=`${state.present.size} presentes`}
 function ownerOf(line){const u=norm(line);return Array.from(state.present).sort((a,b)=>b.length-a.length).find(n=>u.includes(norm(n).replace('.',''))||u.includes(norm(n)))||null}
-function parseReport(raw){
- let sec='';const current=[],future=[];
- raw.split(/\n/).forEach(r=>{
-  const line=r.trim();if(!line)return;const u=norm(line).replace(/\*/g,'');
-  if(u.includes('PROXIMOS SETUPS')){sec='future';return}
-  if(u==='SETUP:'||u==='SETUP'||u.includes('MAQUINAS EM SETUP')){sec='setup';return}
-  if(u.includes('MAQUINAS EM AJUSTES')||u==='AJUSTES:'||u==='AJUSTES'){sec='adjust';return}
-  if(u.includes('MANUTENCAO')||u.includes('SETUPS 3')||u.includes('BOM TRABALHO')){sec='';return}
-  if(!sec)return;
-  const m=line.match(/TNL\s*0*(\d{1,3})/i);if(!m)return;
-  const machine='TNL '+String(m[1]).padStart(3,'0');
-  if(sec==='future'){
-   const tm=(line.match(/\b(\d{1,2}:\d{2})\b/)||[])[1]||'20:30';
-   if(!future.some(x=>x.machine===machine))future.push({id:uid(),machine,start:tm});
-  }else{
-   if(line.includes('✅'))return;
-   const owner=ownerOf(line);
-   if(owner&&!current.some(x=>x.machine===machine&&x.owner===owner))current.push({id:uid(),type:sec,machine,owner});
-  }
- });
- state.current=current;state.future=future.sort((a,b)=>toMin(a.start)-toMin(b.start));state.decisions={};state.roundIndex=0;state.plan=buildPlan();
- return current.length+future.length>0;
-}
-function baseAvailability(name){
- const acts=state.current.filter(a=>a.owner===name&&!state.decisions[a.id]);
- return acts.length?1350:1080;
-}
-function evaluateCombination(activity,time,coverName){
- const s=toMin(time),e=s+60;
- let score=0,level='best',title='Excelente';const reasons=[];
- if(coverName===activity.owner){return{time,name:coverName,level:'bad',title:'Não funciona',score:-999,reasons:['A pessoa não pode cobrir a própria atividade.']}}
- if(baseAvailability(coverName)>s){return{time,name:coverName,level:'bad',title:'Não funciona',score:-900,reasons:[`${coverName} ainda está comprometido nesse horário.`]}}
- const futureConflict=state.future.find(f=>state.plan?.assign?.[f.id]===coverName&&toMin(f.start)<e);
- if(futureConflict){level='warn';title='Possível com impacto';score-=300;reasons.push(`${coverName} está ligado à ${futureConflict.machine} às ${futureConflict.start}.`)}
- const alreadyCover=Object.values(state.decisions).find(d=>d.cover===coverName&&d.time===time);
- if(alreadyCover){level='bad';title='Não funciona';score-=700;reasons.push(`${coverName} já foi usado em outro revezamento nesse horário.`)}
- const dinner=state.plan?.dinners?.[coverName];
- if(dinner&&dinner.start===time){level=level==='bad'?'bad':'warn';title=level==='bad'?'Não funciona':'Possível com impacto';score-=120;reasons.push(`O jantar de ${coverName} precisará mudar.`)}
- const futureCount=state.future.length;
- score+=futureCount*100+toMin(time)/10;
- if(level==='best')reasons.push('Mantém os próximos setups atendidos.','Não cria conflito direto de horário.','Permite reorganizar os demais jantares.');
- else if(level==='warn')reasons.push('A combinação pode funcionar, mas exige reorganização do plano.');
- return{time,name:coverName,level,title,score,reasons};
-}
-function buildPlan(){
- const people=Array.from(state.present);const assign={},dinners={};
- state.future.forEach(f=>{assign[f.id]=people.find(n=>baseAvailability(n)<=toMin(f.start))||null});
- people.forEach((n,i)=>{const t=SLOTS[i%SLOTS.length];dinners[n]={start:t,end:toTime(toMin(t)+60)}});
- Object.entries(state.decisions).forEach(([id,d])=>{if(d.time)dinners[state.current.find(a=>a.id===id)?.owner]={start:d.time,end:toTime(toMin(d.time)+60)}});
- return{assign,dinners};
-}
+function parseReport(raw){let sec='';const current=[],future=[];raw.split(/\n/).forEach(r=>{const line=r.trim();if(!line)return;const u=norm(line).replace(/\*/g,'');if(u.includes('PROXIMOS SETUPS')){sec='future';return}if(u==='SETUP:'||u==='SETUP'||u.includes('MAQUINAS EM SETUP')){sec='setup';return}if(u.includes('MAQUINAS EM AJUSTES')||u==='AJUSTES:'||u==='AJUSTES'){sec='adjust';return}if(u.includes('MANUTENCAO')||u.includes('SETUPS 3')||u.includes('BOM TRABALHO')){sec='';return}if(!sec)return;const m=line.match(/TNL\s*0*(\d{1,3})/i);if(!m)return;const machine='TNL '+String(m[1]).padStart(3,'0');if(sec==='future'){const tm=(line.match(/\b(\d{1,2}:\d{2})\b/)||[])[1]||'20:30';if(!future.some(x=>x.machine===machine))future.push({id:uid(),machine,start:tm})}else{if(line.includes('✅'))return;const owner=ownerOf(line);if(owner&&!current.some(x=>x.machine===machine&&x.owner===owner))current.push({id:uid(),type:sec,machine,owner})}});state.current=current;state.future=future.sort((a,b)=>toMin(a.start)-toMin(b.start));state.decisions={};state.roundIndex=0;state.view='question';state.previousPlan=null;state.plan=buildPlan();state.lastSuggestion=null;return current.length+future.length>0}
+function activitiesOf(name){return state.current.filter(a=>a.owner===name)}
+function personReadyAt(name,decisions=state.decisions){const acts=activitiesOf(name);if(!acts.length)return 1080;let ready=1080;for(const a of acts){const d=decisions[a.id];if(!d)return END;if(d.kind==='cover')return END;if(d.kind==='finish'){ready=Math.max(ready,toMin(d.finish)+MOVE,toMin(d.dinner)+60)}}return ready}
+function addEvent(events,name,s,e,type,meta={}){(events[name]||(events[name]=[])).push({s,e,type,...meta})}
+function isFree(events,name,s,e){return !(events[name]||[]).some(x=>overlap(x.s,x.e,s,e))}
+function cloneDecisions(src=state.decisions){return Object.fromEntries(Object.entries(src).map(([k,v])=>[k,{...v}]))}
+function buildPlan(decisions=state.decisions){const people=Array.from(state.present),events={},dinners={},covers={},assign={};for(const a of state.current){const d=decisions[a.id];if(!d)continue;if(d.kind==='finish'){const ds=toMin(d.dinner);dinners[a.owner]={start:d.dinner,end:toTime(ds+60)};addEvent(events,a.owner,ds,ds+60,'dinner',{activity:a.id})}else if(d.kind==='cover'){const s=toMin(d.time),e=s+60;covers[a.id]={name:d.cover,time:d.time};dinners[a.owner]={start:d.time,end:toTime(e)};addEvent(events,a.owner,s,e,'dinner',{activity:a.id});addEvent(events,d.cover,s,e,'cover',{activity:a.id,machine:a.machine})}}
+for(const f of state.future){const s=toMin(f.start);const candidates=people.filter(n=>personReadyAt(n,decisions)<=s&&isFree(events,n,s,END)).sort((a,b)=>personReadyAt(a,decisions)-personReadyAt(b,decisions)||a.localeCompare(b));const chosen=candidates[0]||null;assign[f.id]=chosen;if(chosen)addEvent(events,chosen,s,END,'future',{machine:f.machine,id:f.id})}
+for(const name of people){if(dinners[name])continue;for(const t of SLOTS){const s=toMin(t),e=s+60;if(personReadyAt(name,decisions)>s||!isFree(events,name,s,e))continue;dinners[name]={start:t,end:toTime(e)};addEvent(events,name,s,e,'dinner');break}}
+const futureCount=state.future.filter(f=>assign[f.id]).length,coverCount=Object.keys(covers).length,dinnerCount=Object.keys(dinners).length;let conflicts=0;for(const name of people){const list=(events[name]||[]).sort((a,b)=>a.s-b.s);for(let i=1;i<list.length;i++)if(overlap(list[i-1].s,list[i-1].e,list[i].s,list[i].e))conflicts++}const score=futureCount*1000+coverCount*250+dinnerCount*100-conflicts*2000;return{assign,covers,dinners,events,futureCount,coverCount,dinnerCount,conflicts,score}}
 function nextActivity(){while(state.roundIndex<state.current.length&&state.decisions[state.current[state.roundIndex].id])state.roundIndex++;return state.current[state.roundIndex]||null}
+function planChanges(a,b){if(!a||!b)return[];const out=[];for(const f of state.future){const x=a.assign[f.id]||'sem responsável',y=b.assign[f.id]||'sem responsável';if(x!==y)out.push(`${f.machine}: ${x} → ${y}`)}for(const act of state.current){const x=a.covers[act.id],y=b.covers[act.id],xs=x?`${x.name} ${x.time}`:'sem cobertura',ys=y?`${y.name} ${y.time}`:'sem cobertura';if(xs!==ys)out.push(`${act.machine}: ${xs} → ${ys}`)}for(const n of state.present){const x=a.dinners[n]?.start||'sem jantar',y=b.dinners[n]?.start||'sem jantar';if(x!==y)out.push(`${n}: jantar ${x} → ${y}`)}return out}
+function impactSummary(plan){const missingSetup=state.future.length-plan.futureCount,missingDinner=state.present.size-plan.dinnerCount;return[missingSetup?`${missingSetup} setup(s) sem responsável`:'Todos os próximos setups atendidos',missingDinner?`${missingDinner} jantar(es) pendentes`:'Todos conseguem jantar',plan.conflicts?'Há conflito de horário':'Nenhum conflito de horário']}
+function evaluateCombo(activity,time,cover,baseDecisions=state.decisions){if(cover===activity.owner)return{time,cover,level:'bad',title:'Não funciona',score:-9999,reasons:['Não pode cobrir a própria atividade.'],plan:null};const dec=cloneDecisions(baseDecisions);dec[activity.id]={kind:'cover',time,cover};const s=toMin(time);if(personReadyAt(cover,dec)>s)return{time,cover,level:'bad',title:'Não funciona',score:-9000,reasons:[`${cover} ainda estará comprometido nesse horário.`],plan:buildPlan(dec)};const plan=buildPlan(dec),reasons=impactSummary(plan),all=plan.futureCount===state.future.length&&plan.dinnerCount===state.present.size&&!plan.conflicts;let level=all?'best':plan.futureCount===state.future.length&&!plan.conflicts?'ok':'warn',title=all?'Excelente':level==='ok'?'Boa opção':'Com impacto';const previous=baseDecisions[activity.id];if(previous&&(previous.cover!==cover||previous.time!==time))reasons.push(`Troca ${previous.cover} ${previous.time} por ${cover} ${time}.`);return{time,cover,level,title,score:plan.score,plan,reasons}}
+function bestCombos(activity,base=state.decisions){const list=[];for(const t of SLOTS)for(const n of state.present)if(n!==activity.owner)list.push(evaluateCombo(activity,t,n,base));return list.sort((a,b)=>b.score-a.score)}
+function finishAnalysis(activity,finish,dinner){const dec=cloneDecisions();dec[activity.id]={kind:'finish',finish,dinner};const plan=buildPlan(dec),ready=toTime(Math.max(toMin(finish)+MOVE,toMin(dinner)+60));const gains=[];for(const f of state.future){if(plan.assign[f.id]===activity.owner&&state.plan?.assign?.[f.id]!==activity.owner)gains.push(`${activity.owner} pode assumir ${f.machine} às ${f.start}.`)}return{plan,ready,gains,summary:impactSummary(plan)}}
+function findImprovement(){const current=buildPlan();let best=null;for(const a of state.current){const d=state.decisions[a.id];if(!d||d.kind!=='cover')continue;for(const x of bestCombos(a)){if(x.level==='bad'||!x.plan)continue;if(x.cover===d.cover&&x.time===d.time)continue;const gain=x.plan.score-current.score;if(gain>0&&(!best||gain>best.gain))best={activity:a,from:d,to:x,gain}}}return best}
 function planList(){return state.future.map(f=>`<div class="setup-row ${state.plan.assign[f.id]?'ok':''}"><time>${f.start}</time><div><strong>${f.machine}</strong><span>${state.plan.assign[f.id]||'Sem responsável'}</span></div><i>${state.plan.assign[f.id]?'✓':'!'}</i></div>`).join('')}
-function renderInitialPlan(){return`<div class="status-banner good"><strong>Planejamento carregado</strong><span>${state.current.length} atividades e ${state.future.length} próximos setups encontrados.</span></div><div class="setup-list">${planList()}</div><button id="startRound" class="btn primary full">Iniciar ronda e comparar combinações</button>`}
-function renderRoundCard(){
- const a=nextActivity();
- if(!a)return`<div class="status-banner good"><strong>Ronda concluída</strong><span>As combinações foram definidas.</span></div><button id="goFinal" class="btn primary full">Abrir plano final</button>`;
- const people=Array.from(state.present).filter(n=>n!==a.owner);const items=[];
- SLOTS.forEach(t=>people.forEach(n=>items.push(evaluateCombination(a,t,n))));
- const best=items.slice().sort((x,y)=>y.score-x.score).find(x=>x.level!=='bad');
- return`<div class="round-summary"><span>${state.roundIndex+1} de ${state.current.length}</span><b>${a.owner}</b><b>${a.machine}</b></div><div class="person-card combo-card"><header><div><small>${a.type==='setup'?'SETUP EM ANDAMENTO':'AJUSTE EM ANDAMENTO'}</small><h3>${a.owner}</h3><span>${a.machine}</span></div><em>${best?`Melhor: ${best.time} + ${best.name}`:'Sem combinação viável'}</em></header>${best?`<button class="best-combo" data-combo="${best.time}|${best.name}"><small>MELHOR COMBINAÇÃO</small><strong>${best.time} · ${best.name} cobre</strong><span>${best.reasons.join(' • ')}</span></button>`:''}<div class="person-question">Compare horário + preparador de cobertura</div><div class="matrix-wrap"><table class="combo-matrix"><thead><tr><th>Horário</th>${people.map(n=>`<th>${n}</th>`).join('')}</tr></thead><tbody>${SLOTS.map(t=>`<tr><th>${t}</th>${people.map(n=>{const x=items.find(i=>i.time===t&&i.name===n);const icon=x.level==='best'?'★':x.level==='warn'?'▲':'×';return`<td><button class="matrix-cell ${x.level}" data-combo="${t}|${n}"><b>${icon}</b><small>${x.title}</small></button></td>`}).join('')}</tr>`).join('')}</tbody></table></div><div class="matrix-legend"><span>★ Excelente</span><span>▲ Com impacto</span><span>× Não funciona</span></div></div>`;
-}
-function showCombination(a,x){
- const end=toTime(toMin(x.time)+60);
- $('#sheet').innerHTML=`<div class="sheet-backdrop"><div class="sheet"><div class="sheet-handle"></div><div class="sheet-kicker">ANÁLISE DA COMBINAÇÃO</div><h3>${a.owner} ${x.time} · ${x.name} cobre</h3><div class="combo-rating ${x.level}"><strong>${x.title}</strong>${x.reasons.map(r=>`<span>${r}</span>`).join('')}</div><div class="decision-people"><div><small>${a.owner}</small><strong>Jantar ${x.time}–${end}</strong><span>${a.machine}</span></div><div><small>${x.name}</small><strong>Cobertura ${x.time}–${end}</strong><span>${a.machine}</span></div></div><div class="sheet-actions"><button id="cancelSheet" class="btn secondary">Voltar</button><button id="confirmDecision" class="btn primary" ${x.level==='bad'?'disabled':''}>Usar esta combinação</button></div></div></div>`;
- $('#cancelSheet').onclick=()=>$('#sheet').innerHTML='';
- if(x.level!=='bad')$('#confirmDecision').onclick=()=>{state.decisions[a.id]={time:x.time,cover:x.name};state.plan=buildPlan();state.roundIndex++;$('#sheet').innerHTML='';renderRound()};
-}
-function bindRound(){const a=nextActivity();if(!a){const g=$('#goFinal');if(g)g.onclick=()=>{state.step=3;update()};return}$$('[data-combo]').forEach(b=>b.onclick=()=>{const p=b.dataset.combo.split('|');showCombination(a,evaluateCombination(a,p[0],p[1]))})}
-function renderRound(){const box=$('#round');box.innerHTML=state.roundIndex===0&&Object.keys(state.decisions).length===0?renderInitialPlan():renderRoundCard();const s=$('#startRound');if(s)s.onclick=()=>{state.roundIndex=0;box.innerHTML=renderRoundCard();bindRound()};bindRound()}
-function renderFinal(){
- const people=Array.from(state.present);
- $('#final').innerHTML=`<div class="final-hero good"><strong>Plano do turno</strong><span>${state.future.filter(f=>state.plan.assign[f.id]).length}/${state.future.length} próximos setups atendidos</span></div><div class="team-board">${people.map(n=>{const d=state.plan.dinners[n];const cover=Object.entries(state.decisions).find(([,v])=>v.cover===n);return`<section><header><strong>${n}</strong><span>${d?`Jantar ${d.start}`:'Jantar pendente'}</span></header>${cover?`<p>↔ Cobre ${state.current.find(a=>a.id===cover[0])?.owner} às ${cover[1].time}</p>`:''}</section>`}).join('')}</div><h3 class="final-section-title">Próximos setups</h3><div class="setup-list">${planList()}</div>`;
-}
-function update(){
- $$('.step').forEach((e,i)=>e.classList.toggle('active',i===state.step));
- $$('.progress span').forEach((e,i)=>e.classList.toggle('on',i<=state.step));
- $('#back').style.visibility=state.step===0?'hidden':'visible';
- $('#next').textContent=state.step===3?'Voltar ao planejamento':'Continuar';
- if(state.step===2)renderRound();if(state.step===3)renderFinal();window.scrollTo(0,0);
-}
-$('#addName').onclick=()=>{const input=$('#newName');const v=input.value.trim();if(!v)return;let n=state.roster.find(x=>norm(x)===norm(v));if(!n){n=v;state.roster.push(n)}state.present.add(n);input.value='';renderRoster()};
+function renderPulse(){const confirmed=Object.keys(state.decisions).length;return`<div class="live-pulse"><div><small>RONDA EM TEMPO REAL</small><strong>${confirmed}/${state.current.length} confirmados</strong></div><div><span>⚙ ${state.plan.futureCount}/${state.future.length} setups</span><span>🍽 ${state.plan.dinnerCount}/${state.present.size} jantares</span></div></div>`}
+function renderImprovement(){const s=state.lastSuggestion;if(!s)return'';return`<div class="improvement-card"><small>OPORTUNIDADE DE MELHORIA</small><strong>Trocar ${s.from.cover} por ${s.to.cover} na ${s.activity.machine}</strong><p>Como o plano mudou durante a ronda, essa troca melhora o resultado global.</p><div>${s.to.reasons.slice(0,3).map(r=>`<span>✓ ${r}</span>`).join('')}</div><div class="improvement-actions"><button id="keepPlan" class="btn secondary">Manter atual</button><button id="applyImprove" class="btn primary">Aplicar melhoria</button></div></div>`}
+function renderQuestion(a){return`${renderPulse()}${renderImprovement()}<div class="round-summary"><span>${state.roundIndex+1} de ${state.current.length}</span><b>${a.owner}</b><b>${a.machine}</b></div><div class="decision-card-new"><header><small>${a.type==='setup'?'SETUP EM ANDAMENTO':'AJUSTE EM ANDAMENTO'}</small><h3>${a.owner}</h3><span>${a.machine}</span></header><div class="big-question">Vai precisar de revezamento?</div><div class="yes-no"><button data-needs="no" class="answer-no"><b>Não</b><span>Vai terminar e ficará livre</span></button><button data-needs="yes" class="answer-yes"><b>Sim</b><span>Precisa de alguém na máquina</span></button></div></div>`}
+function renderFinish(a){return`${renderPulse()}<div class="decision-card-new"><header><small>SEM REVEZAMENTO</small><h3>${a.owner}</h3><span>${a.machine}</span></header><div class="form-block"><label>Que horas termina?</label><select id="finishAt" class="input">${SLOTS.concat(['21:00','21:30']).map(t=>`<option>${t}</option>`).join('')}</select><label>Que horas vai jantar?</label><select id="dinnerAt" class="input">${SLOTS.map(t=>`<option>${t}</option>`).join('')}</select><div id="finishImpact" class="inline-impact"></div><button id="confirmFinish" class="btn primary full">Confirmar e recalcular o turno</button></div></div>`}
+function renderCover(a,selectedCover=null,showMatrix=false){const combos=bestCombos(a),best=combos.find(x=>x.level==='best')||combos.find(x=>x.level==='ok')||combos.find(x=>x.level==='warn'),cover=selectedCover||best?.cover,byCover=combos.filter(x=>x.cover===cover),topPeople=[...new Set(combos.filter(x=>x.level!=='bad').slice(0,8).map(x=>x.cover))].slice(0,4);return`${renderPulse()}<div class="decision-card-new"><header><small>PRECISA DE REVEZAMENTO</small><h3>${a.owner}</h3><span>${a.machine}</span></header>${best?`<button class="smart-best" data-pick="${best.time}|${best.cover}"><small>MELHOR AGORA</small><strong>${best.time} · ${best.cover} cobre</strong><span>${best.reasons.slice(0,3).join(' • ')}</span></button>`:''}<div class="section-label">Escolha quem deve cobrir</div><div class="cover-people">${topPeople.map(n=>{const x=combos.find(c=>c.cover===n&&c.level!=='bad');return`<button data-cover="${n}" class="${n===cover?'selected':''}"><strong>${n}</strong><small>${x?`${x.time} · ${x.title}`:'Sem opção'}</small></button>`}).join('')}</div><div class="section-label">Horários com ${cover||'o preparador escolhido'}</div><div class="time-options">${byCover.map(x=>`<button data-pick="${x.time}|${x.cover}" class="${x.level}"><strong>${x.time}</strong><span>${x.title}</span><small>${x.reasons[0]}</small></button>`).join('')}</div><button id="toggleMatrix" class="btn secondary full">${showMatrix?'Ocultar todas as combinações':'Comparar todos os preparadores'}</button>${showMatrix?renderMatrix(a,combos):''}</div>`}
+function renderMatrix(a,combos){const people=Array.from(state.present).filter(n=>n!==a.owner);return`<div class="matrix-wrap"><table class="combo-matrix"><thead><tr><th>Horário</th>${people.map(n=>`<th>${n}</th>`).join('')}</tr></thead><tbody>${SLOTS.map(t=>`<tr><th>${t}</th>${people.map(n=>{const x=combos.find(c=>c.time===t&&c.cover===n),icon=x.level==='best'?'★':x.level==='ok'?'●':x.level==='warn'?'▲':'×';return`<td><button data-pick="${t}|${n}" class="matrix-cell ${x.level}"><b>${icon}</b><small>${x.title}</small></button></td>`}).join('')}</tr>`).join('')}</tbody></table></div>`}
+function showConfirm(a,x){const changes=planChanges(state.plan,x.plan);$('#sheet').innerHTML=`<div class="sheet-backdrop"><div class="sheet"><div class="sheet-handle"></div><div class="sheet-kicker">ANÁLISE DA DECISÃO</div><h3>${a.owner} janta ${x.time}<br>${x.cover} cobre ${a.machine}</h3><div class="combo-rating ${x.level}"><strong>${x.title}</strong>${x.reasons.map(r=>`<span>${r}</span>`).join('')}</div><div class="result-box ${x.level==='best'?'good':'warn'}"><b>O que muda no turno</b>${changes.length?changes.slice(0,10).map(c=>`<span>${c}</span>`).join(''):'<span>O restante do plano permanece igual.</span>'}</div><div class="sheet-actions"><button id="closeSheet" class="btn secondary">Voltar</button><button id="confirmCover" class="btn primary">Usar esta combinação</button></div></div></div>`;$('#closeSheet').onclick=()=>$('#sheet').innerHTML='';$('#confirmCover').onclick=()=>commitDecision(a,{kind:'cover',time:x.time,cover:x.cover},x.plan)}
+function commitDecision(a,decision,plan){state.previousPlan=state.plan;state.decisions[a.id]=decision;state.plan=plan||buildPlan();state.roundIndex++;state.view='question';state.lastSuggestion=findImprovement();$('#sheet').innerHTML='';renderRound()}
+function bindImprovement(){if($('#keepPlan'))$('#keepPlan').onclick=()=>{state.lastSuggestion=null;renderRound()};if($('#applyImprove'))$('#applyImprove').onclick=()=>{const s=state.lastSuggestion;state.decisions[s.activity.id]={kind:'cover',time:s.to.time,cover:s.to.cover};state.plan=buildPlan();state.lastSuggestion=null;renderRound()}}
+function bindRound(a){bindImprovement();$$('[data-needs]').forEach(b=>b.onclick=()=>{state.view=b.dataset.needs==='yes'?'cover':'finish';renderRound()});if($('#finishAt')){const updateImpact=()=>{const x=finishAnalysis(a,$('#finishAt').value,$('#dinnerAt').value);$('#finishImpact').innerHTML=`<strong>Ficará disponível após ${x.ready}</strong>${x.summary.map(s=>`<span>${s}</span>`).join('')}${x.gains.map(g=>`<span class="gain">${g}</span>`).join('')}`};$('#finishAt').onchange=updateImpact;$('#dinnerAt').onchange=updateImpact;updateImpact();$('#confirmFinish').onclick=()=>{const finish=$('#finishAt').value,dinner=$('#dinnerAt').value,x=finishAnalysis(a,finish,dinner);commitDecision(a,{kind:'finish',finish,dinner},x.plan)}}$$('[data-cover]').forEach(b=>b.onclick=()=>{state.view={type:'cover',name:b.dataset.cover,matrix:false};renderRound()});$$('[data-pick]').forEach(b=>b.onclick=()=>{const[t,n]=b.dataset.pick.split('|');showConfirm(a,evaluateCombo(a,t,n))});if($('#toggleMatrix'))$('#toggleMatrix').onclick=()=>{const v=typeof state.view==='object'?state.view:{type:'cover',name:null,matrix:false};state.view={type:'cover',name:v.name,matrix:!v.matrix};renderRound()}}
+function renderRound(){state.plan=buildPlan();const box=$('#round'),a=nextActivity();if(!a){box.innerHTML=`${renderPulse()}${renderImprovement()}<div class="status-banner good"><strong>Ronda concluída</strong><span>O plano foi recalculado com todas as informações confirmadas.</span></div><div class="setup-list">${planList()}</div><button id="goFinal" class="btn primary full">Abrir plano final</button>`;bindImprovement();$('#goFinal').onclick=()=>{state.step=3;update()};return}if(state.view==='finish')box.innerHTML=renderFinish(a);else if(state.view==='cover'||typeof state.view==='object'){const v=typeof state.view==='object'?state.view:{};box.innerHTML=renderCover(a,v.name,v.matrix)}else box.innerHTML=renderQuestion(a);bindRound(a)}
+function renderFinal(){const people=Array.from(state.present);$('#final').innerHTML=`<div class="final-hero ${state.plan.futureCount===state.future.length?'good':'warn'}"><strong>Plano do turno</strong>${impactSummary(state.plan).map(x=>`<span>${x}</span>`).join('')}</div><div class="team-board">${people.map(n=>{const d=state.plan.dinners[n],ready=personReadyAt(n),cover=Object.entries(state.decisions).find(([,v])=>v.kind==='cover'&&v.cover===n),future=state.future.find(f=>state.plan.assign[f.id]===n);return`<section><header><strong>${n}</strong><span>${d?`Jantar ${d.start}`:'Jantar pendente'}</span></header>${ready<END?`<p>🟢 Disponível após ${toTime(ready)}</p>`:''}${cover?`<p>↔ Cobre ${state.current.find(a=>a.id===cover[0])?.owner} às ${cover[1].time}</p>`:''}${future?`<p>⚙ ${future.machine} às ${future.start}</p>`:''}</section>`}).join('')}</div><h3 class="final-section-title">Próximos setups</h3><div class="setup-list">${planList()}</div>`}
+function update(){$$('.step').forEach((e,i)=>e.classList.toggle('active',i===state.step));$$('.progress span').forEach((e,i)=>e.classList.toggle('on',i<=state.step));$('#back').style.visibility=state.step===0?'hidden':'visible';$('#next').style.display=state.step===2?'none':'block';$('#next').textContent=state.step===3?'Voltar ao planejamento':'Continuar';if(state.step===2)renderRound();if(state.step===3)renderFinal();window.scrollTo(0,0)}
+$('#addName').onclick=()=>{const input=$('#newName'),v=input.value.trim();if(!v)return;let n=state.roster.find(x=>norm(x)===norm(v));if(!n){n=v;state.roster.push(n)}state.present.add(n);input.value='';renderRoster()};
 $('#example').onclick=()=>{$('#report').value='*SETUP:*\n🔴 TNL 051 - CLAYTON\n🔴 TNL 118 - WENDEL\n🔴 TNL 144 - LUCIANO\n🔴 TNL 145 - MÁRCIO\n\n*MAQUINAS EM AJUSTES:*\nTNL 050 - NATTAN\nTNL 013 - EWERSON\nTNL 044 - MARLON\n\n*PRÓXIMOS SETUPS:*\n🔴 TNL 074 - Setup 2°T (18:00)\n🔴 TNL 079 - Setup 2°T (21:00)'};
 $('#parse').onclick=()=>{if(!parseReport($('#report').value)){toast('Nenhuma atividade válida');return}state.step=2;update()};
-$('#back').onclick=()=>{if(state.step>0){state.step--;update()}};
+$('#back').onclick=()=>{if(state.step===2&&state.view!=='question'){state.view='question';renderRound();return}if(state.step>0){state.step--;update()}};
 $('#next').onclick=()=>{if(state.step===0&&state.present.size<2){toast('Selecione ao menos 2 preparadores');return}if(state.step===1){if(!parseReport($('#report').value)){toast('Cole um relatório válido');return}state.step=2}else if(state.step===3)state.step=2;else state.step++;update()};
 renderRoster();update();
 })();
