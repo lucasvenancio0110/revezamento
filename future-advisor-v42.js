@@ -1,13 +1,179 @@
 (()=>{'use strict';
 const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
 const toMin=t=>{const m=String(t||'').match(/(\d{1,2}):(\d{2})/);return m?Number(m[1])*60+Number(m[2]):9999};
+const round=document.querySelector('#round');
+let observer=null;
+let queued=false;
+let rendering=false;
+
 function names(){return[...document.querySelectorAll('[data-future-owner] option')].map(o=>o.value).filter(Boolean).filter((n,i,a)=>a.indexOf(n)===i)}
-function parseActivities(){const raw=document.querySelector('#report')?.value||'',map={};let sec='';for(const original of raw.split(/\n/)){const line=original.trim();if(!line)continue;const u=norm(line).replace(/\*/g,'');if(u.includes('PROXIMOS SETUPS')){sec='future';continue}if(u==='SETUP:'||u==='SETUP'||u.includes('MAQUINAS EM SETUP')){sec='setup';continue}if(u.includes('MAQUINAS EM AJUSTES')||u==='AJUSTES:'||u==='AJUSTES'){sec='adjust';continue}if(u.includes('MANUTENCAO')||u.includes('SETUPS 3')||u.includes('BOM TRABALHO')){sec='';continue}if(!['setup','adjust'].includes(sec)||line.includes('✅'))continue;const machine=(line.match(/TNL\s*0*(\d{1,3})/i)||[])[1];if(!machine)continue;const owner=names().sort((a,b)=>b.length-a.length).find(n=>u.includes(norm(n)));if(owner)map[owner]={status:sec,machine:`TNL ${String(machine).padStart(3,'0')}`}}return map}
-function getCards(){return[...document.querySelectorAll('[data-future-owner]')].map((select,index)=>{const label=select.closest('label')||select.parentElement,text=label?.innerText||'';return{index,select,label,time:(text.match(/\b\d{1,2}:\d{2}\b/)||[])[0]||'20:30',machine:(text.match(/TNL\s*\d{1,3}/i)||[])[0]||'Setup'}})}
-function evaluate(name,card,activities,reserved){const activity=activities[name];let score=100;const why=[];if(reserved.has(name)){score=-1000;why.push('Já está reservado para outro próximo setup.');return{name,score,why}}if(!activity){score+=30;why.push('Não aparece em setup ou ajuste no relatório.');why.push(`É a opção mais livre conhecida para iniciar às ${card.time}, mas precisa ser confirmada na ronda.`)}else if(activity.status==='adjust'){score-=20;why.push(`Está em ajuste na ${activity.machine}.`);why.push(`Pode assumir às ${card.time} somente se o ajuste terminar antes.`);if(toMin(card.time)<=19*60)score-=20}else{score-=50;why.push(`Está em setup na ${activity.machine}.`);why.push(`Só pode assumir às ${card.time} se esse setup terminar antes.`);if(toMin(card.time)<=19*60)score-=25}return{name,score,why}}
-function buildPlan(cards,activities){const plan=new Map(),reserved=new Set(cards.filter(c=>c.select.value).map(c=>c.select.value));for(const card of cards.filter(c=>c.select.value)){plan.set(card.index,{name:card.select.value,manual:true,score:999,why:['Definido manualmente por você.']})}for(const card of cards.filter(c=>!c.select.value).sort((a,b)=>toMin(a.time)-toMin(b.time))){const ranked=names().map(n=>evaluate(n,card,activities,reserved)).sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name,'pt-BR'));const best=ranked.find(x=>x.score>-1000)||ranked[0];if(best){plan.set(card.index,{...best,manual:false});reserved.add(best.name)}}return plan}
-function alternatives(card,cards,activities,plan){const used=new Set([...plan.entries()].filter(([i])=>i!==card.index).map(([,v])=>v.name));return names().map(n=>evaluate(n,card,activities,used)).sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name,'pt-BR')).slice(0,5)}
-function recommendationHtml(best,alts,index){const status=best.manual?'Definido por você':best.score<0?'Melhor opção disponível':'Recomendação do plano completo';return`<div class="future-advice" data-advice-index="${index}"><div class="future-advice-top"><span>ANÁLISE DO SISTEMA</span><b>${status}</b></div><div class="future-advice-main"><strong>${best.manual?'✓':'🥇'} ${best.name}</strong>${best.manual?'':`<button type="button" data-apply-recommendation="${best.name}">Aplicar</button>`}</div>${best.why.map(x=>`<p>✓ ${x}</p>`).join('')}<p>Esta recomendação considera todos os próximos setups juntos. Por isso cada preparador é distribuído uma única vez.</p>${alts.length?`<button type="button" class="future-alt-toggle" data-toggle-alternatives aria-expanded="false">▶ Ver alternativas</button><div class="future-alt-list" hidden>${alts.map((a,i)=>`<div class="future-alt"><b>${i+2}º ${a.name}</b><span>${a.why.join(' ')}</span></div>`).join('')}</div>`:''}</div>`}
-function bind(){document.querySelectorAll('[data-apply-recommendation]').forEach(btn=>btn.onclick=e=>{e.preventDefault();e.stopPropagation();const select=btn.closest('label')?.querySelector('[data-future-owner]');if(!select)return;select.value=btn.dataset.applyRecommendation;select.dispatchEvent(new Event('change',{bubbles:true}));render()});document.querySelectorAll('[data-toggle-alternatives]').forEach(btn=>btn.onclick=e=>{e.preventDefault();e.stopPropagation();const list=btn.nextElementSibling;if(!list)return;const opening=list.hidden;list.hidden=!opening;btn.setAttribute('aria-expanded',String(opening));btn.textContent=opening?'▼ Ocultar alternativas':'▶ Ver alternativas'})}
-function render(){const openIndexes=new Set([...document.querySelectorAll('.future-advice')].filter(x=>!x.querySelector('.future-alt-list')?.hidden).map(x=>x.dataset.adviceIndex));const cards=getCards();if(!cards.length)return;const activities=parseActivities(),plan=buildPlan(cards,activities);for(const card of cards){const best=plan.get(card.index);if(!best)continue;const alts=alternatives(card,cards,activities,plan).filter(a=>a.name!==best.name).slice(0,4);const html=recommendationHtml(best,alts,card.index);const host=card.label.querySelector('.future-advice');if(host)host.outerHTML=html;else card.select.insertAdjacentHTML('beforebegin',html)}bind();for(const index of openIndexes){const box=document.querySelector(`.future-advice[data-advice-index="${index}"]`),list=box?.querySelector('.future-alt-list'),btn=box?.querySelector('[data-toggle-alternatives]');if(list&&btn){list.hidden=false;btn.setAttribute('aria-expanded','true');btn.textContent='▼ Ocultar alternativas'}}}
-let queued=false;const schedule=()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;render()})};new MutationObserver(schedule).observe(document.querySelector('#round'),{childList:true,subtree:true});document.addEventListener('change',e=>{if(e.target.matches('[data-future-owner]'))schedule()});document.addEventListener('click',e=>{if(e.target.closest('#parse,#next'))setTimeout(schedule,80)});schedule();})();
+
+function parseActivities(){
+  const raw=document.querySelector('#report')?.value||'';
+  const map={};
+  let sec='';
+  for(const original of raw.split(/\n/)){
+    const line=original.trim();
+    if(!line)continue;
+    const u=norm(line).replace(/\*/g,'');
+    if(u.includes('PROXIMOS SETUPS')){sec='future';continue}
+    if(u==='SETUP:'||u==='SETUP'||u.includes('MAQUINAS EM SETUP')){sec='setup';continue}
+    if(u.includes('MAQUINAS EM AJUSTES')||u==='AJUSTES:'||u==='AJUSTES'){sec='adjust';continue}
+    if(u.includes('MANUTENCAO')||u.includes('SETUPS 3')||u.includes('BOM TRABALHO')){sec='';continue}
+    if(!['setup','adjust'].includes(sec)||line.includes('✅'))continue;
+    const machine=(line.match(/TNL\s*0*(\d{1,3})/i)||[])[1];
+    if(!machine)continue;
+    const owner=names().sort((a,b)=>b.length-a.length).find(n=>u.includes(norm(n)));
+    if(owner)map[owner]={status:sec,machine:`TNL ${String(machine).padStart(3,'0')}`};
+  }
+  return map;
+}
+
+function getCards(){
+  return[...document.querySelectorAll('[data-future-owner]')].map((select,index)=>{
+    const label=select.closest('label')||select.parentElement;
+    const text=label?.innerText||'';
+    return{index,select,label,time:(text.match(/\b\d{1,2}:\d{2}\b/)||[])[0]||'20:30',machine:(text.match(/TNL\s*\d{1,3}/i)||[])[0]||'Setup'};
+  });
+}
+
+function evaluate(name,card,activities,reserved){
+  const activity=activities[name];
+  let score=100;
+  const why=[];
+  if(reserved.has(name)){
+    score=-1000;
+    why.push('Já está reservado para outro próximo setup.');
+    return{name,score,why};
+  }
+  if(!activity){
+    score+=30;
+    why.push('Não aparece em setup ou ajuste no relatório.');
+    why.push(`É a opção mais livre conhecida para iniciar às ${card.time}, mas precisa ser confirmada na ronda.`);
+  }else if(activity.status==='adjust'){
+    score-=20;
+    why.push(`Está em ajuste na ${activity.machine}.`);
+    why.push(`Pode assumir às ${card.time} somente se o ajuste terminar antes.`);
+    if(toMin(card.time)<=19*60)score-=20;
+  }else{
+    score-=50;
+    why.push(`Está em setup na ${activity.machine}.`);
+    why.push(`Só pode assumir às ${card.time} se esse setup terminar antes.`);
+    if(toMin(card.time)<=19*60)score-=25;
+  }
+  return{name,score,why};
+}
+
+function buildPlan(cards,activities){
+  const plan=new Map();
+  const reserved=new Set(cards.filter(c=>c.select.value).map(c=>c.select.value));
+  for(const card of cards.filter(c=>c.select.value)){
+    plan.set(card.index,{name:card.select.value,manual:true,score:999,why:['Definido manualmente por você.']});
+  }
+  for(const card of cards.filter(c=>!c.select.value).sort((a,b)=>toMin(a.time)-toMin(b.time))){
+    const ranked=names().map(n=>evaluate(n,card,activities,reserved)).sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name,'pt-BR'));
+    const best=ranked.find(x=>x.score>-1000)||ranked[0];
+    if(best){plan.set(card.index,{...best,manual:false});reserved.add(best.name)}
+  }
+  return plan;
+}
+
+function alternatives(card,activities,plan){
+  const used=new Set([...plan.entries()].filter(([i])=>i!==card.index).map(([,v])=>v.name));
+  return names().map(n=>evaluate(n,card,activities,used)).sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name,'pt-BR')).slice(0,5);
+}
+
+function recommendationHtml(best,alts,index,isOpen){
+  const status=best.manual?'Definido por você':best.score<0?'Melhor opção disponível':'Recomendação do plano completo';
+  const listId=`future-alternatives-${index}`;
+  return`<div class="future-advice ${isOpen?'is-open':''}" data-advice-index="${index}">
+    <div class="future-advice-top"><span>ANÁLISE DO SISTEMA</span><b>${status}</b></div>
+    <div class="future-advice-main"><strong>${best.manual?'✓':'🥇'} ${best.name}</strong>${best.manual?'':`<button type="button" data-apply-recommendation="${best.name}">Aplicar</button>`}</div>
+    ${best.why.map(x=>`<p>✓ ${x}</p>`).join('')}
+    <p>Esta recomendação considera todos os próximos setups juntos. Por isso cada preparador é distribuído uma única vez.</p>
+    ${alts.length?`<button type="button" class="future-alt-toggle" data-toggle-alternatives aria-expanded="${isOpen?'true':'false'}" aria-controls="${listId}">${isOpen?'▼ Ocultar alternativas':'▶ Ver alternativas'}</button><div id="${listId}" class="future-alt-list ${isOpen?'open':''}" data-alt-list aria-hidden="${isOpen?'false':'true'}">${alts.map((a,i)=>`<button type="button" class="future-alt" data-choose-alternative="${a.name}"><b>${i+2}º ${a.name}</b><span>${a.why.join(' ')}</span><em>Escolher esta opção</em></button>`).join('')}</div>`:''}
+  </div>`;
+}
+
+function observe(){
+  if(!round)return;
+  if(!observer)observer=new MutationObserver(()=>schedule());
+  observer.observe(round,{childList:true,subtree:true});
+}
+
+function render(){
+  if(rendering)return;
+  const cards=getCards();
+  if(!cards.length)return;
+  rendering=true;
+  const openIndexes=new Set([...document.querySelectorAll('.future-advice.is-open')].map(x=>Number(x.dataset.adviceIndex)));
+  const activities=parseActivities();
+  const plan=buildPlan(cards,activities);
+  observer?.disconnect();
+  try{
+    for(const card of cards){
+      const best=plan.get(card.index);
+      if(!best)continue;
+      const alts=alternatives(card,activities,plan).filter(a=>a.name!==best.name).slice(0,4);
+      const html=recommendationHtml(best,alts,card.index,openIndexes.has(card.index));
+      const host=card.label.querySelector('.future-advice');
+      if(host)host.outerHTML=html;
+      else card.select.insertAdjacentHTML('beforebegin',html);
+    }
+  }finally{
+    rendering=false;
+    observe();
+  }
+}
+
+function schedule(){
+  if(queued||rendering)return;
+  queued=true;
+  requestAnimationFrame(()=>{queued=false;render()});
+}
+
+function choose(select,name){
+  if(!select||!name)return;
+  select.value=name;
+  select.dispatchEvent(new Event('change',{bubbles:true}));
+  schedule();
+}
+
+document.addEventListener('click',event=>{
+  const toggle=event.target.closest('[data-toggle-alternatives]');
+  if(toggle){
+    event.preventDefault();
+    event.stopPropagation();
+    const advice=toggle.closest('.future-advice');
+    const list=advice?.querySelector('[data-alt-list]');
+    if(!advice||!list)return;
+    const opening=!advice.classList.contains('is-open');
+    advice.classList.toggle('is-open',opening);
+    list.classList.toggle('open',opening);
+    list.setAttribute('aria-hidden',String(!opening));
+    toggle.setAttribute('aria-expanded',String(opening));
+    toggle.textContent=opening?'▼ Ocultar alternativas':'▶ Ver alternativas';
+    return;
+  }
+
+  const apply=event.target.closest('[data-apply-recommendation]');
+  if(apply){
+    event.preventDefault();
+    event.stopPropagation();
+    choose(apply.closest('label')?.querySelector('[data-future-owner]'),apply.dataset.applyRecommendation);
+    return;
+  }
+
+  const alternative=event.target.closest('[data-choose-alternative]');
+  if(alternative){
+    event.preventDefault();
+    event.stopPropagation();
+    choose(alternative.closest('label')?.querySelector('[data-future-owner]'),alternative.dataset.chooseAlternative);
+  }
+});
+
+document.addEventListener('change',event=>{if(event.target.matches('[data-future-owner]'))schedule()});
+document.addEventListener('click',event=>{if(event.target.closest('#parse,#next'))setTimeout(schedule,80)});
+observe();
+schedule();
+})();
